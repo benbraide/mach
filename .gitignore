@@ -30,3 +30,10 @@
 *.exe
 *.out
 *.app
+/mach/mach/x64/Debug
+/mach/.vs/mach/v15
+/mach/mach/mach.vcxproj
+/mach/mach/mach.vcxproj.filters
+/mach/mach/mach.vcxproj.user
+/mach/x64/Debug
+/mach/mach.sln
