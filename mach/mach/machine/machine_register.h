@@ -93,7 +93,7 @@ namespace mach::machine{
 		}
 
 		template <typename target_type>
-		void write_converted_scalar(target_type buffer) const{
+		void write_converted_scalar(target_type buffer){
 			write_qword(static_cast<m_qword_type>(buffer));
 		}
 	};

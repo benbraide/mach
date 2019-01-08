@@ -1,19 +1,16 @@
 #include "io/io_binary_string_reader.h"
-#include "machine/machine_register.h"
+#include "machine/machine_stack.h"
 
 int main(){
 	mach::machine::qword_integer_register qwir;
-	auto qw = qwir.read_scalar<unsigned __int64>();
-	auto dw = qwir.read_scalar<unsigned __int32>();
-	auto w = qwir.read_scalar<unsigned __int16>();
-	auto b = qwir.read_scalar<unsigned __int8>();
+	qwir.write_converted_scalar(450);
 
-	qw = qwir.get_child()->read_scalar<unsigned __int64>();
-	qw = qwir.get_child()->read_converted_scalar<unsigned __int64>();
-	qw = qwir.get_child()->read_qword();
-	dw = qwir.get_child()->read_scalar<unsigned __int32>();
-	w = qwir.get_child()->read_scalar<unsigned __int16>();
-	b = qwir.get_child()->read_scalar<unsigned __int8>();
+	mach::machine::stack::byte buffer[1024];
+	mach::machine::stack stk(buffer, 1024);
+
+	stk.push(qwir);
+	qwir.write_converted_scalar(720);
+	stk.pop(qwir);
 
 	return 0;
 }
