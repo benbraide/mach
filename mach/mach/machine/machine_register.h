@@ -33,43 +33,20 @@ namespace mach::machine{
 		using type = float;
 	};
 
-	template <class buffer_type, class qword_type>
-	class generic_register{
+	class register_object{
 	public:
 		using byte = unsigned __int8;
 
-		using m_buffer_type = buffer_type;
-		using m_qword_type = qword_type;
-
-		virtual std::size_t get_size() const{
-			return sizeof(m_buffer_type);
-		}
-
-		virtual generic_register<typename register_child_buffer_type<buffer_type>::type, qword_type> *get_child() const{
-			return nullptr;
-		}
+		virtual std::size_t get_size() const = 0;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const = 0;
 
-		virtual m_qword_type read_qword() const{
-			return static_cast<m_qword_type>(read_scalar<m_buffer_type>());
-		}
-
 		virtual std::size_t write(const byte *buffer, std::size_t size) = 0;
-
-		virtual void write_qword(m_qword_type buffer){
-			write_scalar(static_cast<m_buffer_type>(buffer));
-		}
 
 		template <typename target_type>
 		target_type read_scalar() const{
 			auto buffer = target_type();
 			return ((read(reinterpret_cast<byte *>(&buffer), sizeof(target_type)) == sizeof(target_type)) ? buffer : target_type());
-		}
-
-		template <typename target_type>
-		target_type read_converted_scalar() const{
-			return static_cast<target_type>(read_qword());
 		}
 
 		template <typename target_type>
@@ -83,13 +60,41 @@ namespace mach::machine{
 		}
 
 		template <typename target_type>
-		void write_converted_scalar(target_type buffer) const{
-			write_qword(static_cast<m_qword_type>(buffer));
+		std::size_t write_buffer(const target_type *buffer, std::size_t size){
+			return write(reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size));
+		}
+	};
+
+	template <class buffer_type, class qword_type>
+	class generic_register : public register_object{
+	public:
+		using m_buffer_type = buffer_type;
+		using m_qword_type = qword_type;
+
+		virtual std::size_t get_size() const override{
+			return sizeof(m_buffer_type);
+		}
+
+		virtual generic_register<typename register_child_buffer_type<buffer_type>::type, qword_type> *get_child() const{
+			return nullptr;
+		}
+
+		virtual m_qword_type read_qword() const{
+			return static_cast<m_qword_type>(read_scalar<m_buffer_type>());
+		}
+
+		virtual void write_qword(m_qword_type buffer){
+			write_scalar(static_cast<m_buffer_type>(buffer));
 		}
 
 		template <typename target_type>
-		std::size_t write_buffer(const target_type *buffer, std::size_t size){
-			return write(reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size));
+		target_type read_converted_scalar() const{
+			return static_cast<target_type>(read_qword());
+		}
+
+		template <typename target_type>
+		void write_converted_scalar(target_type buffer) const{
+			write_qword(static_cast<m_qword_type>(buffer));
 		}
 	};
 
