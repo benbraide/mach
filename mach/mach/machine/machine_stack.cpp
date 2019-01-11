@@ -16,8 +16,7 @@ std::size_t mach::machine::stack::push(const byte *buffer, std::size_t size){
 }
 
 bool mach::machine::stack::push(const register_object &reg){
-	auto reg_size = reg.read(qword_buffer_, reg.get_size());
-	return (push(qword_buffer_, reg_size) == reg_size);
+	return (push(reg.get_data(), reg.get_size()) == reg.get_size());
 }
 
 std::size_t mach::machine::stack::pop(byte *buffer, std::size_t size){
@@ -33,12 +32,7 @@ std::size_t mach::machine::stack::pop(byte *buffer, std::size_t size){
 }
 
 bool mach::machine::stack::pop(register_object &reg){
-	auto reg_size = reg.get_size();
-	if (pop(qword_buffer_, reg_size) != reg_size)
-		return false;
-
-	reg.write(qword_buffer_, reg_size);
-	return true;
+	return (pop(reg.get_data(), reg.get_size()) == reg.get_size());
 }
 
 std::size_t mach::machine::stack::get_offset() const{

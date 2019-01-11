@@ -16,11 +16,11 @@ namespace mach::io{
 
 		virtual std::size_t get_bytes_remaining() const override;
 
-		virtual std::size_t read(byte *buffer, std::size_t size) override;
+		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 	private:
-		std::ifstream stream_;
+		mutable std::ifstream stream_;
 		std::size_t size_ = 0u;
-		std::size_t offset_ = 0u;
+		mutable std::size_t offset_ = 0u;
 	};
 }

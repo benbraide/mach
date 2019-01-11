@@ -2,6 +2,9 @@
 
 #include <memory>
 
+#include "../io/io_reader.h"
+#include "../io/io_writer.h"
+
 namespace mach::machine{
 	class word_integer_register;
 	class dword_integer_register;
@@ -33,15 +36,15 @@ namespace mach::machine{
 		using type = float;
 	};
 
-	class register_object{
+	class register_object : public io::reader, public io::writer{
 	public:
 		using byte = unsigned __int8;
 
+		virtual std::size_t get_bytes_remaining() const override;
+
 		virtual std::size_t get_size() const = 0;
 
-		virtual std::size_t read(byte *buffer, std::size_t size) const = 0;
-
-		virtual std::size_t write(const byte *buffer, std::size_t size) = 0;
+		virtual byte *get_data() const = 0;
 
 		template <typename target_type>
 		target_type read_scalar() const{
@@ -100,6 +103,8 @@ namespace mach::machine{
 
 	class byte_integer_register : public generic_register<unsigned __int8, unsigned __int64>{
 	public:
+		virtual byte *get_data() const override;
+
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
@@ -114,11 +119,13 @@ namespace mach::machine{
 
 	class word_integer_register : public generic_register<unsigned __int16, unsigned __int64>{
 	public:
-		virtual generic_register<unsigned __int8, unsigned __int64> *get_child() const override;
+		virtual byte *get_data() const override;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
+
+		virtual generic_register<unsigned __int8, unsigned __int64> *get_child() const override;
 
 	protected:
 		friend class dword_integer_register;
@@ -131,11 +138,13 @@ namespace mach::machine{
 
 	class dword_integer_register : public generic_register<unsigned __int32, unsigned __int64>{
 	public:
-		virtual generic_register<unsigned __int16, unsigned __int64> *get_child() const override;
+		virtual byte *get_data() const override;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
+
+		virtual generic_register<unsigned __int16, unsigned __int64> *get_child() const override;
 
 	protected:
 		friend class qword_integer_register;
@@ -154,11 +163,13 @@ namespace mach::machine{
 
 		qword_integer_register &operator =(const qword_integer_register &) = delete;
 
-		virtual generic_register<unsigned __int32, unsigned __int64> *get_child() const override;
+		virtual byte *get_data() const override;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
+
+		virtual generic_register<unsigned __int32, unsigned __int64> *get_child() const override;
 
 	protected:
 		m_buffer_type buffer_ = 0u;
@@ -167,6 +178,8 @@ namespace mach::machine{
 
 	class dword_float_register : public generic_register<float, long double>{
 	public:
+		virtual byte *get_data() const override;
+
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
@@ -187,11 +200,13 @@ namespace mach::machine{
 
 		qword_float_register &operator =(const qword_float_register &) = delete;
 
-		virtual generic_register<float, long double> *get_child() const override;
+		virtual byte *get_data() const override;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 		virtual std::size_t write(const byte *buffer, std::size_t size) override;
+
+		virtual generic_register<float, long double> *get_child() const override;
 
 	protected:
 		m_buffer_type buffer_ = 0.0l;

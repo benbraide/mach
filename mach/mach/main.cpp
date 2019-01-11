@@ -1,16 +1,14 @@
-#include "io/io_binary_string_reader.h"
-#include "machine/machine_stack.h"
+#include "machine/machine_memory.h"
 
 int main(){
-	mach::machine::qword_integer_register qwir;
-	qwir.write_converted_scalar(450);
+	char buffer[1024] = {};
 
-	mach::machine::stack::byte buffer[1024];
-	mach::machine::stack stk(buffer, 1024);
-
-	stk.push(qwir);
-	qwir.write_converted_scalar(720);
-	stk.pop(qwir);
+	mach::machine::memory mm;
+	auto blk = mm.allocate_block(sizeof(int) * 18);
+	auto bw = mm.write_buffer(blk->get_address(), "Leading bytes", strlen("Leading bytes"));
+	bw = mm.write_buffer((blk->get_address() + strlen("Leading bytes")), "Next bytes", strlen("Next bytes"));
+	bw = mm.read_buffer(blk->get_address(), buffer, strlen("Leading bytes"));
+	bw = mm.read_buffer(blk->get_address() + strlen("Leading bytes"), buffer, strlen("Next bytes"));
 
 	return 0;
 }

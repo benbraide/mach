@@ -23,7 +23,7 @@ std::size_t mach::io::binary_string_reader::get_bytes_remaining() const{
 	return (stream_.size() - offset_);
 }
 
-std::size_t mach::io::binary_string_reader::read(byte *buffer, std::size_t size){
+std::size_t mach::io::binary_string_reader::read(byte *buffer, std::size_t size) const{
 	if (auto remaining_ = (stream_.size() - offset_); remaining_ < size)
 		size = remaining_;//Adjust size
 

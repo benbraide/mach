@@ -30,7 +30,7 @@ std::size_t mach::io::binary_file_reader::get_bytes_remaining() const{
 	return (size_ - offset_);
 }
 
-std::size_t mach::io::binary_file_reader::read(byte *buffer, std::size_t size){
+std::size_t mach::io::binary_file_reader::read(byte *buffer, std::size_t size) const{
 	if (auto remaining_ = (size_ - offset_); remaining_ < size)
 		size = remaining_;//Adjust size
 

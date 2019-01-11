@@ -21,8 +21,6 @@ namespace mach::machine{
 
 	private:
 		byte *buffer_ = nullptr;
-		byte qword_buffer_[sizeof(unsigned __int64)] = {};
-
 		std::size_t size_ = 0u;
 		std::size_t offset_ = 0u;
 	};
