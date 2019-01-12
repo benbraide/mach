@@ -41,19 +41,15 @@ namespace mach::machine{
 
 		memory_block *allocate_block(std::size_t size, unsigned int attributes = 0u);
 
-		memory_block *allocate_partial_block(qword address, qword offset, std::size_t size);
-
-		memory_block *allocate_partial_block(full_memory_block &block, qword offset, std::size_t size);
-
 		memory_block *reallocate_block(qword address, std::size_t size);
 
-		memory_block *reallocate_block(full_memory_block &block, std::size_t size);
+		memory_block *reallocate_block(memory_block &block, std::size_t size);
 
 		bool deallocate_block(qword address);
 
-		full_memory_block *find_block(qword address) const;
+		memory_block *find_block(qword address) const;
 
-		full_memory_block *find_block_containing_address(qword address) const;
+		memory_block *find_block_containing_address(qword address) const;
 
 		void set_range_attributes(qword start, qword end, unsigned int attributes);
 
@@ -95,31 +91,27 @@ namespace mach::machine{
 
 		memory_block *allocate_block_(std::size_t size, unsigned int attributes);
 
-		memory_block *allocate_partial_block_(qword address, qword offset, std::size_t size);
-
-		memory_block *allocate_partial_block_(full_memory_block &block, qword offset, std::size_t size);
-
 		memory_block *reallocate_block_(qword address, std::size_t size);
 
-		memory_block *reallocate_block_(full_memory_block &block, std::size_t size);
+		memory_block *reallocate_block_(memory_block &block, std::size_t size);
 
 		bool deallocate_block_(qword address);
 
-		bool deallocate_block_(full_memory_block &block);
+		bool deallocate_block_(memory_block &block);
 
 		bool add_free_space_(qword address);
 
 		qword extract_free_space_(std::size_t size);
 
-		full_memory_block *find_block_(qword address) const;
+		memory_block *find_block_(qword address) const;
 
-		full_memory_block *find_block_containing_address_(qword address) const;
+		memory_block *find_block_containing_address_(qword address) const;
 
 		void set_range_attributes_(qword start, qword end, unsigned int attributes);
 
 		unsigned int get_range_attributes_(qword start, qword end) const;
 
-		std::unordered_map<qword, std::shared_ptr<full_memory_block>> blocks_;
+		std::unordered_map<qword, std::shared_ptr<memory_block>> blocks_;
 		std::map<qword, size_info> available_sizes_;
 		std::list<range_info> range_attributes_;
 

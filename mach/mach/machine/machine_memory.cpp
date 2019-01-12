@@ -39,22 +39,12 @@ mach::machine::memory_block *mach::machine::memory::allocate_block(std::size_t s
 	return allocate_block_(size, attributes);
 }
 
-mach::machine::memory_block *mach::machine::memory::allocate_partial_block(qword address, qword offset, std::size_t size){
-	std::lock_guard<std::shared_mutex> guard(lock_);
-	return allocate_partial_block_(address, offset, size);
-}
-
-mach::machine::memory_block *mach::machine::memory::allocate_partial_block(full_memory_block &block, qword offset, std::size_t size){
-	std::lock_guard<std::shared_mutex> guard(lock_);
-	return allocate_partial_block_(block, offset, size);
-}
-
 mach::machine::memory_block *mach::machine::memory::reallocate_block(qword address, std::size_t size){
 	std::lock_guard<std::shared_mutex> guard(lock_);
 	return reallocate_block_(address, size);
 }
 
-mach::machine::memory_block *mach::machine::memory::reallocate_block(full_memory_block &block, std::size_t size){
+mach::machine::memory_block *mach::machine::memory::reallocate_block(memory_block &block, std::size_t size){
 	std::lock_guard<std::shared_mutex> guard(lock_);
 	return reallocate_block_(block, size);
 }
@@ -64,12 +54,12 @@ bool mach::machine::memory::deallocate_block(qword address){
 	return deallocate_block_(address);
 }
 
-mach::machine::full_memory_block *mach::machine::memory::find_block(qword address) const{
+mach::machine::memory_block *mach::machine::memory::find_block(qword address) const{
 	std::shared_lock<std::shared_mutex> guard(lock_);
 	return find_block_(address);
 }
 
-mach::machine::full_memory_block *mach::machine::memory::find_block_containing_address(qword address) const{
+mach::machine::memory_block *mach::machine::memory::find_block_containing_address(qword address) const{
 	std::shared_lock<std::shared_mutex> guard(lock_);
 	return find_block_containing_address_(address);
 }
@@ -96,7 +86,7 @@ std::size_t mach::machine::memory::read_(qword address, byte *buffer, std::size_
 	}
 
 	std::size_t bytes_read = 0u, read_count = 0u;
-	for (auto block = find_block_containing_address_(address); bytes_read < size; block = dynamic_cast<full_memory_block *>(block->next_block_)){
+	for (auto block = find_block_containing_address_(address); bytes_read < size; block = block->next_block_){
 		if (block == nullptr){//Access violation
 			if (exception != nullptr)
 				*exception = memory_block::access_protected;
@@ -122,7 +112,7 @@ std::size_t mach::machine::memory::write_(qword address, const byte *buffer, std
 	}
 
 	std::size_t bytes_written = 0u, write_count = 0u;
-	for (auto block = find_block_containing_address_(address); bytes_written < size ; block = dynamic_cast<full_memory_block *>(block->next_block_)){
+	for (auto block = find_block_containing_address_(address); bytes_written < size ; block = block->next_block_){
 		if (block == nullptr){//Access violation
 			if (exception != nullptr)
 				*exception = memory_block::access_protected;
@@ -190,10 +180,10 @@ std::size_t mach::machine::memory::copy_(qword source, qword destination, std::s
 			break;//Exception thrown
 
 		if ((source_block->real_size_ - source_offset) == copy_count)//End of block
-			source_block = dynamic_cast<full_memory_block *>(source_block->next_block_);
+			source_block = source_block->next_block_;
 
 		if ((destination_block->real_size_ - destination_offset) == copy_count)//End of block
-			destination_block = dynamic_cast<full_memory_block *>(destination_block->next_block_);
+			destination_block = destination_block->next_block_;
 	}
 
 	return bytes_copied;
@@ -207,7 +197,7 @@ std::size_t mach::machine::memory::copy_(const io::reader &source, qword destina
 	}
 
 	std::size_t bytes_copied = 0u, copy_count = 0u;
-	for (auto block = find_block_containing_address_(destination); bytes_copied < size; block = dynamic_cast<full_memory_block *>(block->next_block_)){
+	for (auto block = find_block_containing_address_(destination); bytes_copied < size; block = block->next_block_){
 		if (block == nullptr){//Access violation
 			if (exception != nullptr)
 				*exception = memory_block::access_protected;
@@ -245,7 +235,7 @@ std::size_t mach::machine::memory::copy_(qword source, io::writer &destination, 
 	}
 
 	std::size_t bytes_copied = 0u, copy_count = 0u;
-	for (auto block = find_block_containing_address_(source); bytes_copied < size; block = dynamic_cast<full_memory_block *>(block->next_block_)){
+	for (auto block = find_block_containing_address_(source); bytes_copied < size; block = block->next_block_){
 		if (block == nullptr || (block->attributes_ & memory_block::access_protected) != 0u){//Access violation
 			if (exception != nullptr)
 				*exception = memory_block::access_protected;
@@ -270,7 +260,7 @@ std::size_t mach::machine::memory::copy_(qword source, io::writer &destination, 
 }
 
 mach::machine::memory_block *mach::machine::memory::allocate_block_(std::size_t size, unsigned int attributes){
-	auto block = std::make_shared<full_memory_block>(0u, size, attributes);
+	auto block = std::make_shared<memory_block>(0u, size, attributes);
 	if (block == nullptr)//Failed to allocate memory
 		return nullptr;
 
@@ -292,21 +282,12 @@ mach::machine::memory_block *mach::machine::memory::allocate_block_(std::size_t 
 	return block.get();
 }
 
-mach::machine::memory_block *mach::machine::memory::allocate_partial_block_(qword address, qword offset, std::size_t size){
-	auto block = find_block_(address);
-	return ((block == nullptr) ? nullptr : allocate_partial_block_(*block, offset, size));
-}
-
-mach::machine::memory_block *mach::machine::memory::allocate_partial_block_(full_memory_block &block, qword offset, std::size_t size){
-	return block.insert_partial_block_(offset, size);
-}
-
 mach::machine::memory_block *mach::machine::memory::reallocate_block_(qword address, std::size_t size){
 	auto block = find_block_(address);
 	return ((block == nullptr) ? nullptr : reallocate_block_(*block, size));
 }
 
-mach::machine::memory_block *mach::machine::memory::reallocate_block_(full_memory_block &block, std::size_t size){
+mach::machine::memory_block *mach::machine::memory::reallocate_block_(memory_block &block, std::size_t size){
 	if (block.real_size_ < size){//Extend
 		if (auto free_entry = available_sizes_.find(block.address_ + block.real_size_); free_entry != available_sizes_.end()){
 			if (auto attributes = block.attributes_; !free_entry->second.is_free || free_entry->second.value < size){
@@ -343,7 +324,7 @@ bool mach::machine::memory::deallocate_block_(qword address){
 	return true;
 }
 
-bool mach::machine::memory::deallocate_block_(full_memory_block &block){
+bool mach::machine::memory::deallocate_block_(memory_block &block){
 	return deallocate_block_(block.address_);
 }
 
@@ -387,12 +368,12 @@ mach::machine::memory::qword mach::machine::memory::extract_free_space_(std::siz
 	return address;
 }
 
-mach::machine::full_memory_block *mach::machine::memory::find_block_(qword address) const{
+mach::machine::memory_block *mach::machine::memory::find_block_(qword address) const{
 	auto it = blocks_.find(address);
 	return ((it == blocks_.end()) ? nullptr : it->second.get());
 }
 
-mach::machine::full_memory_block *mach::machine::memory::find_block_containing_address_(qword address) const{
+mach::machine::memory_block *mach::machine::memory::find_block_containing_address_(qword address) const{
 	if (blocks_.empty())
 		return nullptr;
 
