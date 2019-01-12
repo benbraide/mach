@@ -51,13 +51,9 @@ unsigned int mach::machine::memory_block::get_attributes() const{
 	return attributes_;
 }
 
-std::size_t mach::machine::memory_block::read(qword offset, byte *buffer, std::size_t size, unsigned int *exception) const{
-	if ((attributes_ & access_protected) != 0u){//Access protected
-		if (exception != nullptr)
-			*exception = access_protected;
-
-		return 0u;
-	}
+std::size_t mach::machine::memory_block::read(qword offset, byte *buffer, std::size_t size) const{
+	if ((attributes_ & access_protected) != 0u)//Access protected
+		throw memory_error_code::access_protected;
 
 	if ((real_size_ - offset) < size)//Restrict size
 		size = (real_size_ - offset);
@@ -69,13 +65,9 @@ std::size_t mach::machine::memory_block::read(qword offset, byte *buffer, std::s
 	return ((size <= real_size_) ? size : 0u);
 }
 
-std::size_t mach::machine::memory_block::write(qword offset, const byte *buffer, std::size_t size, unsigned int *exception){
-	if ((attributes_ & write_protected) != 0u){//Write protected
-		if (exception != nullptr)
-			*exception = write_protected;
-
-		return 0u;
-	}
+std::size_t mach::machine::memory_block::write(qword offset, const byte *buffer, std::size_t size){
+	if ((attributes_ & write_protected) != 0u)//Write protected
+		throw memory_error_code::write_protected;
 
 	if ((real_size_ - offset) < size)//Restrict size
 		size = (real_size_ - offset);
@@ -87,13 +79,9 @@ std::size_t mach::machine::memory_block::write(qword offset, const byte *buffer,
 	return ((size <= real_size_) ? size : 0u);
 }
 
-std::size_t mach::machine::memory_block::set(qword offset, byte value, std::size_t size, unsigned int *exception){
-	if ((attributes_ & write_protected) != 0u){//Write protected
-		if (exception != nullptr)
-			*exception = write_protected;
-
-		return 0u;
-	}
+std::size_t mach::machine::memory_block::set(qword offset, byte value, std::size_t size){
+	if ((attributes_ & write_protected) != 0u)//Write protected
+		throw memory_error_code::write_protected;
 
 	if ((real_size_ - offset) < size)//Restrict size
 		size = (real_size_ - offset);

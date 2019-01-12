@@ -1,7 +1,7 @@
 #include "byte_code_instruction.h"
 
-unsigned int mach::byte_code::instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
-	return execution_code_unrecognized_instruction;
+void mach::byte_code::instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
+	throw instruction_error_code::unrecognized_instruction;
 }
 
 mach::machine::register_object *mach::byte_code::instruction::get_register(std::size_t size, std::size_t index, machine::register_table &reg_table){
@@ -33,7 +33,7 @@ mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract
 	switch (extract_value<machine::op_operand_type>(memory, reg_table)){
 	case machine::op_operand_type::reg:
 	{//Extract register
-		auto data = extract_data(sizeof(byte), memory, reg_table, write_to_first_temp_buffer);
+		auto data = extract_data(sizeof(byte), memory, reg_table, write_to_first_temp_buffer, instruction_error_code::bad_operand);
 		if (data == nullptr)//Error
 			return nullptr;
 
@@ -41,18 +41,18 @@ mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract
 	}
 	case machine::op_operand_type::mem:
 	{//Extract memory
-		auto key_size = extract_value<byte>(memory, reg_table);
+		auto key_size = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
 		if (key_size == 0u)//Error
 			return nullptr;
 
-		auto key_count = extract_value<byte>(memory, reg_table);
+		auto key_count = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
 		if (key_count == 0u)//Error
 			return nullptr;
 
 		if (key_count == 1u){//Single key
 			auto op = extract_operand(key_size, memory, reg_table, write_to_first_temp_buffer);
 			if (!std::holds_alternative<byte *>(op))//Error
-				return nullptr;
+				throw instruction_error_code::bad_operand;
 
 			switch (key_size){
 			case 1u:
@@ -86,19 +86,20 @@ mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract
 		return nullptr;
 	}
 	case machine::op_operand_type::val://Extract immediate value
-		return extract_data(size, memory, reg_table, write_to_first_temp_buffer);
+		return extract_data(size, memory, reg_table, write_to_first_temp_buffer, instruction_error_code::bad_operand);
 	default://Error
 		return nullptr;
 	}
 }
 
-mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer){
+mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer, instruction_error_code e){
 	auto ip = reg_table.get_instruction_pointer()->read_scalar<qword>();
-	auto read_exception = execution_code_success;
-
-	auto read_count = memory.read(ip, (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_), size, &read_exception);
-	if (read_exception != execution_code_success || read_count != size)
-		return nullptr;//Error
+	auto read_count = memory.read(ip, (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_), size);
+	if (read_count != size){//Error
+		if (e != instruction_error_code::nil)
+			throw e;
+		return nullptr;
+	}
 
 	reg_table.get_instruction_pointer()->write_scalar(ip + size);
 	return (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_);
@@ -108,16 +109,11 @@ thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::te
 
 thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer2_[sizeof(qword)];
 
-unsigned int mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
-	auto size = extract_value<byte>(memory, reg_table);
+void mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
+	auto size = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
 
 	auto destination = extract_operand(size, memory, reg_table, true);
-	if (std::holds_alternative<std::nullptr_t>(destination))//Error
-		return execution_code_access_protected;
-
 	auto source = extract_operand(size, memory, reg_table, false);
-	if (std::holds_alternative<std::nullptr_t>(source))//Error
-		return execution_code_access_protected;
 
 	if (std::holds_alternative<qword>(destination)){//Memory destination
 		if (std::holds_alternative<byte *>(source))//Value source
@@ -136,7 +132,5 @@ unsigned int mach::byte_code::mov_instruction::execute(machine::memory &memory, 
 			memory.read(std::get<qword>(source), std::get<machine::register_object *>(destination)->get_data(), size);
 	}
 	else//Error
-		return execution_code_access_protected;
-
-	return execution_code_success;
+		throw instruction_error_code::bad_operand;
 }

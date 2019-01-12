@@ -4,34 +4,34 @@ mach::machine::memory::memory(){
 	allocate_block_(0u, (memory_block::access_protected | memory_block::write_protected));
 }
 
-std::size_t mach::machine::memory::read(qword address, byte *buffer, std::size_t size, unsigned int *exception) const{
+std::size_t mach::machine::memory::read(qword address, byte *buffer, std::size_t size) const{
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return read_(address, buffer, size, exception);
+	return read_(address, buffer, size);
 }
 
-std::size_t mach::machine::memory::write(qword address, const byte *buffer, std::size_t size, unsigned int *exception){
+std::size_t mach::machine::memory::write(qword address, const byte *buffer, std::size_t size){
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return write_(address, buffer, size, true, exception);
+	return write_(address, buffer, size, true);
 }
 
-std::size_t mach::machine::memory::set(qword address, byte value, std::size_t size, unsigned int *exception){
+std::size_t mach::machine::memory::set(qword address, byte value, std::size_t size){
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return write_(address, &value, size, false, exception);
+	return write_(address, &value, size, false);
 }
 
-std::size_t mach::machine::memory::copy(qword source, qword destination, std::size_t size, unsigned int *exception){
+std::size_t mach::machine::memory::copy(qword source, qword destination, std::size_t size){
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return copy_(source, destination, size, exception);
+	return copy_(source, destination, size);
 }
 
-std::size_t mach::machine::memory::copy(const io::reader &source, qword destination, std::size_t size, unsigned int *exception){
+std::size_t mach::machine::memory::copy(const io::reader &source, qword destination, std::size_t size){
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return copy_(source, destination, size, exception);
+	return copy_(source, destination, size);
 }
 
-std::size_t mach::machine::memory::copy(qword source, io::writer &destination, std::size_t size, unsigned int *exception){
+std::size_t mach::machine::memory::copy(qword source, io::writer &destination, std::size_t size){
 	std::shared_lock<std::shared_mutex> guard(lock_);
-	return copy_(source, destination, size, exception);
+	return copy_(source, destination, size);
 }
 
 mach::machine::memory_block *mach::machine::memory::allocate_block(std::size_t size, unsigned int attributes){
@@ -78,85 +78,59 @@ bool mach::machine::memory::address_is_inside_range(qword address, qword start, 
 	return (start <= address && address <= end);
 }
 
-std::size_t mach::machine::memory::read_(qword address, byte *buffer, std::size_t size, unsigned int *exception) const{
-	if (auto range_attributes = get_range_attributes_(address, (address + size)); (range_attributes & memory_block::access_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::access_protected;
-		return 0u;
-	}
+std::size_t mach::machine::memory::read_(qword address, byte *buffer, std::size_t size) const{
+	if (auto range_attributes = get_range_attributes_(address, (address + size)); (range_attributes & memory_block::access_protected) != 0u)
+		throw memory_error_code::access_protected;
 
 	std::size_t bytes_read = 0u, read_count = 0u;
 	for (auto block = find_block_containing_address_(address); bytes_read < size; block = block->next_block_){
-		if (block == nullptr){//Access violation
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if (block == nullptr)//Access violation
+			throw memory_error_code::access_protected;
 
-		read_count = block->read(block->get_address_offset(address), (buffer + bytes_read), (size - bytes_read), exception);
+		read_count = block->read(block->get_address_offset(address), (buffer + bytes_read), (size - bytes_read));
 		bytes_read += read_count;
-		address += read_count;
 
-		if (exception != nullptr && *exception != 0u)
-			break;//Exception thrown
+		address += read_count;
 	}
 
 	return bytes_read;
 }
 
-std::size_t mach::machine::memory::write_(qword address, const byte *buffer, std::size_t size, bool is_array_buffer, unsigned int *exception){
-	if (auto range_attributes = get_range_attributes_(address, (address + size)); (range_attributes & memory_block::write_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::write_protected;
-		return 0u;
-	}
+std::size_t mach::machine::memory::write_(qword address, const byte *buffer, std::size_t size, bool is_array_buffer){
+	if (auto range_attributes = get_range_attributes_(address, (address + size)); (range_attributes & memory_block::write_protected) != 0u)
+		throw memory_error_code::write_protected;
 
 	std::size_t bytes_written = 0u, write_count = 0u;
 	for (auto block = find_block_containing_address_(address); bytes_written < size ; block = block->next_block_){
-		if (block == nullptr){//Access violation
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if (block == nullptr)//Access violation
+			throw memory_error_code::write_protected;
 
 		if (is_array_buffer)
-			write_count = block->write(block->get_address_offset(address), (buffer + bytes_written), (size - bytes_written), exception);
+			write_count = block->write(block->get_address_offset(address), (buffer + bytes_written), (size - bytes_written));
 		else//Set
-			write_count = block->set(block->get_address_offset(address), *buffer, (size - bytes_written), exception);
+			write_count = block->set(block->get_address_offset(address), *buffer, (size - bytes_written));
 
 		bytes_written += write_count;
 		address += write_count;
-
-		if (exception != nullptr && *exception != 0u)
-			break;//Exception thrown
 	}
 
 	return bytes_written;
 }
 
-std::size_t mach::machine::memory::copy_(qword source, qword destination, std::size_t size, unsigned int *exception){
-	if (auto range_attributes = get_range_attributes_(source, (source + size)); (range_attributes & memory_block::access_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::access_protected;
-		return 0u;
-	}
+std::size_t mach::machine::memory::copy_(qword source, qword destination, std::size_t size){
+	if (auto range_attributes = get_range_attributes_(source, (source + size)); (range_attributes & memory_block::access_protected) != 0u)
+		throw memory_error_code::access_protected;
 
-	if (auto range_attributes = get_range_attributes_(destination, (destination + size)); (range_attributes & memory_block::write_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::write_protected;
-		return 0u;
-	}
+	if (auto range_attributes = get_range_attributes_(destination, (destination + size)); (range_attributes & memory_block::write_protected) != 0u)
+		throw memory_error_code::write_protected;
 
 	auto source_block = find_block_containing_address_(source);
 	auto destination_block = find_block_containing_address_(destination);
 
 	std::size_t bytes_copied = 0u, copy_count = 0u;
 	while (bytes_copied < size){
-		if (source_block == nullptr || destination_block == nullptr){//Access violation
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if (source_block == nullptr || destination_block == nullptr)//Access violation
+			throw memory_error_code::access_protected;
 
 		auto source_offset = source_block->get_address_offset(source), destination_offset = destination_block->get_address_offset(destination);
 		auto source_size = (source_block->real_size_ - source_offset);
@@ -164,20 +138,14 @@ std::size_t mach::machine::memory::copy_(qword source, qword destination, std::s
 		if (source_size < (copy_count = (size - bytes_copied)))
 			copy_count = source_size;//Restrict size
 
-		if ((source_block->attributes_ & memory_block::access_protected) != 0u){
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if ((source_block->attributes_ & memory_block::access_protected) != 0u)
+			throw memory_error_code::access_protected;
 
-		copy_count = destination_block->write(destination_offset, (source_block->data_.get() + source_offset), copy_count, exception);
+		copy_count = destination_block->write(destination_offset, (source_block->data_.get() + source_offset), copy_count);
 		bytes_copied += copy_count;
 
 		source += copy_count;
 		destination += copy_count;
-
-		if (exception != nullptr && *exception != 0u)
-			break;//Exception thrown
 
 		if ((source_block->real_size_ - source_offset) == copy_count)//End of block
 			source_block = source_block->next_block_;
@@ -189,26 +157,17 @@ std::size_t mach::machine::memory::copy_(qword source, qword destination, std::s
 	return bytes_copied;
 }
 
-std::size_t mach::machine::memory::copy_(const io::reader &source, qword destination, std::size_t size, unsigned int *exception){
-	if (auto range_attributes = get_range_attributes_(destination, (destination + size)); (range_attributes & memory_block::write_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::write_protected;
-		return 0u;
-	}
+std::size_t mach::machine::memory::copy_(const io::reader &source, qword destination, std::size_t size){
+	if (auto range_attributes = get_range_attributes_(destination, (destination + size)); (range_attributes & memory_block::write_protected) != 0u)
+		throw memory_error_code::write_protected;
 
 	std::size_t bytes_copied = 0u, copy_count = 0u;
 	for (auto block = find_block_containing_address_(destination); bytes_copied < size; block = block->next_block_){
-		if (block == nullptr){//Access violation
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if (block == nullptr)//Access violation
+			throw memory_error_code::access_protected;
 
-		if ((block->attributes_ & memory_block::write_protected) != 0u){
-			if (exception != nullptr)
-				*exception = memory_block::write_protected;
-			break;
-		}
+		if ((block->attributes_ & memory_block::write_protected) != 0u)
+			throw memory_error_code::write_protected;
 
 		auto destination_offset = block->get_address_offset(destination);
 		auto destination_size = (block->real_size_ - destination_offset);
@@ -220,27 +179,21 @@ std::size_t mach::machine::memory::copy_(const io::reader &source, qword destina
 		bytes_copied += copy_count;
 		destination += copy_count;
 
-		if (copy_count != destination_size || (exception != nullptr && *exception != 0u))
-			break;//Incomplete read OR Exception thrown
+		if (copy_count != destination_size)
+			break;//Incomplete read
 	}
 
 	return bytes_copied;
 }
 
-std::size_t mach::machine::memory::copy_(qword source, io::writer &destination, std::size_t size, unsigned int *exception){
-	if (auto range_attributes = get_range_attributes_(source, (source + size)); (range_attributes & memory_block::write_protected) != 0u){
-		if (exception != nullptr)
-			*exception = memory_block::write_protected;
-		return 0u;
-	}
+std::size_t mach::machine::memory::copy_(qword source, io::writer &destination, std::size_t size){
+	if (auto range_attributes = get_range_attributes_(source, (source + size)); (range_attributes & memory_block::access_protected) != 0u)
+		throw memory_error_code::access_protected;
 
 	std::size_t bytes_copied = 0u, copy_count = 0u;
 	for (auto block = find_block_containing_address_(source); bytes_copied < size; block = block->next_block_){
-		if (block == nullptr || (block->attributes_ & memory_block::access_protected) != 0u){//Access violation
-			if (exception != nullptr)
-				*exception = memory_block::access_protected;
-			break;
-		}
+		if (block == nullptr || (block->attributes_ & memory_block::access_protected) != 0u)//Access violation
+			throw memory_error_code::access_protected;
 
 		auto source_offset = block->get_address_offset(source);
 		auto source_size = (block->real_size_ - source_offset);
@@ -252,8 +205,8 @@ std::size_t mach::machine::memory::copy_(qword source, io::writer &destination, 
 		bytes_copied += copy_count;
 		source += copy_count;
 
-		if (copy_count != source_size || (exception != nullptr && *exception != 0u))
-			break;//Incomplete write OR Exception thrown
+		if (copy_count != source_size)
+			break;//Incomplete write
 	}
 
 	return bytes_copied;

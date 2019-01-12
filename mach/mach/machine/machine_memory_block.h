@@ -7,6 +7,13 @@
 namespace mach::machine{
 	class memory;
 
+	enum class memory_error_code{
+		nil,
+		out_of_address,
+		access_protected,
+		write_protected,
+	};
+
 	class memory_block{
 	public:
 		using byte = unsigned __int8;
@@ -32,30 +39,30 @@ namespace mach::machine{
 
 		unsigned int get_attributes() const;
 
-		std::size_t read(qword offset, byte *buffer, std::size_t size, unsigned int *exception = nullptr) const;
+		std::size_t read(qword offset, byte *buffer, std::size_t size) const;
 
-		std::size_t write(qword offset, const byte *buffer, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t write(qword offset, const byte *buffer, std::size_t size);
 
-		std::size_t set(qword offset, byte value, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t set(qword offset, byte value, std::size_t size);
 
 		template <typename target_type>
-		target_type read_scalar(qword offset, unsigned int *exception = nullptr) const{
+		target_type read_scalar(qword offset) const{
 			auto buffer = target_type();
 			return ((read(offset, reinterpret_cast<byte *>(&buffer), sizeof(target_type)) == sizeof(target_type)) ? buffer : target_type());
 		}
 
 		template <typename target_type>
-		std::size_t read_buffer(qword offset, target_type *buffer, std::size_t size, unsigned int *exception = nullptr) const{
+		std::size_t read_buffer(qword offset, target_type *buffer, std::size_t size) const{
 			return read(offset, reinterpret_cast<byte *>(buffer), (sizeof(target_type) * size));
 		}
 
 		template <typename target_type>
-		bool write_scalar(qword offset, target_type buffer, unsigned int *exception = nullptr){
+		bool write_scalar(qword offset, target_type buffer){
 			return (write(offset, reinterpret_cast<const byte *>(&buffer), sizeof(target_type)) == sizeof(target_type));
 		}
 
 		template <typename target_type>
-		std::size_t write_buffer(qword offset, const target_type *buffer, std::size_t size, unsigned int *exception = nullptr){
+		std::size_t write_buffer(qword offset, const target_type *buffer, std::size_t size){
 			return write(offset, reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size));
 		}
 

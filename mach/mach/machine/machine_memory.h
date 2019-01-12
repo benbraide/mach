@@ -27,17 +27,17 @@ namespace mach::machine{
 
 		memory();
 
-		std::size_t read(qword address, byte *buffer, std::size_t size, unsigned int *exception = nullptr) const;
+		std::size_t read(qword address, byte *buffer, std::size_t size) const;
 
-		std::size_t write(qword address, const byte *buffer, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t write(qword address, const byte *buffer, std::size_t size);
 
-		std::size_t set(qword address, byte value, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t set(qword address, byte value, std::size_t size);
 
-		std::size_t copy(qword source, qword destination, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t copy(qword source, qword destination, std::size_t size);
 
-		std::size_t copy(const io::reader &source, qword destination, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t copy(const io::reader &source, qword destination, std::size_t size);
 
-		std::size_t copy(qword source, io::writer &destination, std::size_t size, unsigned int *exception = nullptr);
+		std::size_t copy(qword source, io::writer &destination, std::size_t size);
 
 		memory_block *allocate_block(std::size_t size, unsigned int attributes = 0u);
 
@@ -56,38 +56,38 @@ namespace mach::machine{
 		unsigned int get_range_attributes(qword start, qword end) const;
 
 		template <typename target_type>
-		target_type read_scalar(qword address, unsigned int *exception = nullptr) const{
+		target_type read_scalar(qword address) const{
 			auto buffer = target_type();
-			return ((read(address, reinterpret_cast<byte *>(&buffer), sizeof(target_type), exception) == sizeof(target_type)) ? buffer : target_type());
+			return ((read(address, reinterpret_cast<byte *>(&buffer), sizeof(target_type)) == sizeof(target_type)) ? buffer : target_type());
 		}
 
 		template <typename target_type>
-		std::size_t read_buffer(qword address, target_type *buffer, std::size_t size, unsigned int *exception = nullptr) const{
-			return read(address, reinterpret_cast<byte *>(buffer), (sizeof(target_type) * size), exception);
+		std::size_t read_buffer(qword address, target_type *buffer, std::size_t size) const{
+			return read(address, reinterpret_cast<byte *>(buffer), (sizeof(target_type) * size));
 		}
 
 		template <typename target_type>
-		bool write_scalar(qword address, target_type buffer, unsigned int *exception = nullptr){
-			return (write(address, reinterpret_cast<const byte *>(&buffer), sizeof(target_type), exception) == sizeof(target_type));
+		bool write_scalar(qword address, target_type buffer){
+			return (write(address, reinterpret_cast<const byte *>(&buffer), sizeof(target_type)) == sizeof(target_type));
 		}
 
 		template <typename target_type>
-		std::size_t write_buffer(qword address, const target_type *buffer, std::size_t size, unsigned int *exception = nullptr){
-			return write(address, reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size), exception);
+		std::size_t write_buffer(qword address, const target_type *buffer, std::size_t size){
+			return write(address, reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size));
 		}
 
 		static bool address_is_inside_range(qword address, qword start, qword end);
 		
 	protected:
-		std::size_t read_(qword address, byte *buffer, std::size_t size, unsigned int *exception) const;
+		std::size_t read_(qword address, byte *buffer, std::size_t size) const;
 
-		std::size_t write_(qword address, const byte *buffer, std::size_t size, bool is_array_buffer, unsigned int *exception);
+		std::size_t write_(qword address, const byte *buffer, std::size_t size, bool is_array_buffer);
 
-		std::size_t copy_(qword source, qword destination, std::size_t size, unsigned int *exception);
+		std::size_t copy_(qword source, qword destination, std::size_t size);
 
-		std::size_t copy_(const io::reader &source, qword destination, std::size_t size, unsigned int *exception);
+		std::size_t copy_(const io::reader &source, qword destination, std::size_t size);
 
-		std::size_t copy_(qword source, io::writer &destination, std::size_t size, unsigned int *exception);
+		std::size_t copy_(qword source, io::writer &destination, std::size_t size);
 
 		memory_block *allocate_block_(std::size_t size, unsigned int attributes);
 
