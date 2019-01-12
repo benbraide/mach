@@ -94,14 +94,10 @@ mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract
 
 mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer, instruction_error_code e){
 	auto ip = reg_table.get_instruction_pointer()->read_scalar<qword>();
-	auto read_count = memory.read(ip, (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_), size);
-	if (read_count != size){//Error
-		if (e != instruction_error_code::nil)
-			throw e;
-		return nullptr;
-	}
 
+	memory.read(ip, (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_), size);
 	reg_table.get_instruction_pointer()->write_scalar(ip + size);
+
 	return (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_);
 }
 
