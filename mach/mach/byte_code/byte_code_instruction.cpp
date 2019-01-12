@@ -1,6 +1,6 @@
 #include "byte_code_instruction.h"
 
-void mach::byte_code::instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
+void mach::byte_code::instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){
 	throw instruction_error_code::unrecognized_instruction;
 }
 
@@ -95,37 +95,39 @@ mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract
 mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer, instruction_error_code e){
 	auto ip = reg_table.get_instruction_pointer()->read_scalar<qword>();
 
-	memory.read(ip, (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_), size);
+	memory.read(ip, (write_to_first_temp_buffer ? temp_buffer : temp_buffer2), size);
 	reg_table.get_instruction_pointer()->write_scalar(ip + size);
 
-	return (write_to_first_temp_buffer ? temp_buffer_ : temp_buffer2_);
+	return (write_to_first_temp_buffer ? temp_buffer : temp_buffer2);
 }
 
-thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer_[sizeof(qword)];
+thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer[sizeof(qword)];
 
-thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer2_[sizeof(qword)];
+thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer2[sizeof(qword)];
 
-void mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const{
-	auto size = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
+void mach::byte_code::nop_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){}
 
-	auto destination = extract_operand(size, memory, reg_table, true);
-	auto source = extract_operand(size, memory, reg_table, false);
+void mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){
+	auto size = instruction::extract_value<instruction::byte>(memory, reg_table, instruction_error_code::bad_operand);
 
-	if (std::holds_alternative<qword>(destination)){//Memory destination
-		if (std::holds_alternative<byte *>(source))//Value source
-			memory.write(std::get<qword>(destination), std::get<byte *>(source), size);
+	auto destination = instruction::extract_operand(size, memory, reg_table, true);
+	auto source = instruction::extract_operand(size, memory, reg_table, false);
+
+	if (std::holds_alternative<instruction::qword>(destination)){//Memory destination
+		if (std::holds_alternative<instruction::byte *>(source))//Value source
+			memory.write(std::get<instruction::qword>(destination), std::get<instruction::byte *>(source), size);
 		else if (std::holds_alternative<machine::register_object *>(source))//Register source
-			memory.write(std::get<qword>(destination), std::get<machine::register_object *>(source)->get_data(), size);
-		else if (std::holds_alternative<qword>(source))//Memory source
-			memory.copy(std::get<qword>(source), std::get<qword>(destination), size);
+			memory.write(std::get<instruction::qword>(destination), std::get<machine::register_object *>(source)->get_data(), size);
+		else if (std::holds_alternative<instruction::qword>(source))//Memory source
+			memory.copy(std::get<instruction::qword>(source), std::get<instruction::qword>(destination), size);
 	}
 	else if (std::holds_alternative<machine::register_object *>(destination)){//Register destination
-		if (std::holds_alternative<byte *>(source))//Value source
-			std::get<machine::register_object *>(destination)->write(std::get<byte *>(source), size);
+		if (std::holds_alternative<instruction::byte *>(source))//Value source
+			std::get<machine::register_object *>(destination)->write(std::get<instruction::byte *>(source), size);
 		else if (std::holds_alternative<machine::register_object *>(source))//Register source
 			std::get<machine::register_object *>(destination)->write(std::get<machine::register_object *>(source)->get_data(), size);
-		else if (std::holds_alternative<qword>(source))//Memory source
-			memory.read(std::get<qword>(source), std::get<machine::register_object *>(destination)->get_data(), size);
+		else if (std::holds_alternative<instruction::qword>(source))//Memory source
+			memory.read(std::get<instruction::qword>(source), std::get<machine::register_object *>(destination)->get_data(), size);
 	}
 	else//Error
 		throw instruction_error_code::bad_operand;

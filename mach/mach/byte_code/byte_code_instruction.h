@@ -20,7 +20,7 @@ namespace mach::byte_code{
 		using qword = machine::memory::qword;
 		using operand_type = std::variant<std::nullptr_t, machine::register_object *, byte *, qword>;
 
-		virtual void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const;
+		static void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack);
 
 		static machine::register_object *get_register(std::size_t size, std::size_t index, machine::register_table &reg_table);
 
@@ -78,13 +78,17 @@ namespace mach::byte_code{
 			return value;
 		}
 
-	protected:
-		thread_local static byte temp_buffer_[sizeof(qword)];
-		thread_local static byte temp_buffer2_[sizeof(qword)];
+		thread_local static byte temp_buffer[sizeof(qword)];
+		thread_local static byte temp_buffer2[sizeof(qword)];
 	};
 
-	class mov_instruction : public instruction{
+	class nop_instruction{
 	public:
-		virtual void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack) const override;
+		static void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack);
+	};
+
+	class mov_instruction{
+	public:
+		static void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack);
 	};
 }
