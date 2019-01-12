@@ -11,11 +11,15 @@ namespace mach::machine{
 
 		std::size_t push(const byte *buffer, std::size_t size);
 
+		std::size_t push(std::size_t size);
+
 		bool push(const register_object &reg);
 
 		std::size_t pop(byte *buffer, std::size_t size);
 
 		bool pop(register_object &reg);
+
+		byte *get_pointer() const;
 
 		std::size_t get_offset() const;
 

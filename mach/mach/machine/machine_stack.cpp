@@ -15,6 +15,14 @@ std::size_t mach::machine::stack::push(const byte *buffer, std::size_t size){
 	return size;
 }
 
+std::size_t mach::machine::stack::push(std::size_t size){
+	if ((size_ - offset_) < size)//Restrict size
+		size = (size_ - offset_);
+
+	offset_ += size;
+	return size;
+}
+
 bool mach::machine::stack::push(const register_object &reg){
 	return (push(reg.get_data(), reg.get_size()) == reg.get_size());
 }
@@ -33,6 +41,10 @@ std::size_t mach::machine::stack::pop(byte *buffer, std::size_t size){
 
 bool mach::machine::stack::pop(register_object &reg){
 	return (pop(reg.get_data(), reg.get_size()) == reg.get_size());
+}
+
+mach::machine::stack::byte *mach::machine::stack::get_pointer() const{
+	return (buffer_ + offset_);
 }
 
 std::size_t mach::machine::stack::get_offset() const{
