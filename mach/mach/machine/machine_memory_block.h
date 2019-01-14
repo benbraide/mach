@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <string>
 
 #include "machine_register.h"
 
@@ -9,9 +10,12 @@ namespace mach::machine{
 
 	enum class memory_error_code{
 		nil,
-		out_of_address,
+		out_of_address_space,
+		allocation_failure,
 		access_protected,
 		write_protected,
+		external_data_extend,
+		block_not_found,
 	};
 
 	class memory_block{
@@ -21,7 +25,7 @@ namespace mach::machine{
 
 		memory_block(qword address, std::size_t size, unsigned int attributes = 0u);
 
-		~memory_block();
+		virtual ~memory_block();
 
 		qword get_address() const;
 
@@ -68,12 +72,15 @@ namespace mach::machine{
 
 		static const unsigned int access_protected			= (0u << 0x0000u);
 		static const unsigned int write_protected			= (1u << 0x0000u);
+		static const unsigned int external_data_extend		= (1u << 0x0001u);
 
 	protected:
 		friend class memory;
 
 		friend class full_memory_block;
 		friend class partial_memory_block;
+
+		memory_block();
 
 		bool offset_is_inside_block_(qword offset) const;
 
@@ -90,5 +97,17 @@ namespace mach::machine{
 
 		memory_block *previous_block_ = nullptr;
 		memory_block *next_block_ = nullptr;
+	};
+
+	class external_memory_block : public memory_block{
+	public:
+		external_memory_block(byte *data, qword address, std::size_t size, unsigned int attributes = 0u);
+
+		virtual ~external_memory_block();
+
+		byte *get_data() const;
+
+	protected:
+		byte *external_data_ = nullptr;
 	};
 }

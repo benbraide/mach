@@ -1,7 +1,7 @@
 #include "machine_memory.h"
 
 mach::machine::memory::memory(){
-	allocate_block_(0u, (memory_block::access_protected | memory_block::write_protected));
+	allocate_block_(nullptr, 0u, (memory_block::access_protected | memory_block::write_protected));
 }
 
 void mach::machine::memory::read(qword address, byte *buffer, std::size_t size) const{
@@ -36,7 +36,12 @@ void mach::machine::memory::copy(qword source, io::writer &destination, std::siz
 
 mach::machine::memory_block *mach::machine::memory::allocate_block(std::size_t size, unsigned int attributes){
 	std::lock_guard<std::shared_mutex> guard(lock_);
-	return allocate_block_(size, attributes);
+	return allocate_block_(nullptr, size, attributes);
+}
+
+mach::machine::memory_block *mach::machine::memory::allocate_block(byte *data, std::size_t size, unsigned int attributes){
+	std::lock_guard<std::shared_mutex> guard(lock_);
+	return allocate_block_(data, size, attributes);
 }
 
 mach::machine::memory_block *mach::machine::memory::reallocate_block(qword address, std::size_t size){
@@ -49,9 +54,9 @@ mach::machine::memory_block *mach::machine::memory::reallocate_block(memory_bloc
 	return reallocate_block_(block, size);
 }
 
-bool mach::machine::memory::deallocate_block(qword address){
+void mach::machine::memory::deallocate_block(qword address){
 	std::lock_guard<std::shared_mutex> guard(lock_);
-	return deallocate_block_(address);
+	deallocate_block_(address);
 }
 
 mach::machine::memory_block *mach::machine::memory::find_block(qword address) const{
@@ -217,13 +222,16 @@ void mach::machine::memory::copy_(qword source, io::writer &destination, std::si
 		throw memory_error_code::access_protected;
 }
 
-mach::machine::memory_block *mach::machine::memory::allocate_block_(std::size_t size, unsigned int attributes){
-	auto block = std::make_shared<memory_block>(0u, size, attributes);
+mach::machine::memory_block *mach::machine::memory::allocate_block_(byte *data, std::size_t size, unsigned int attributes){
+	auto block = ((data == nullptr) ? std::make_shared<memory_block>(0u, size, attributes) : std::make_shared<external_memory_block>(data, 0u, size, attributes));
 	if (block == nullptr)//Failed to allocate memory
-		return nullptr;
+		throw memory_error_code::allocation_failure;
 
 	auto address = extract_free_space_(block->real_size_);
 	if (address == static_cast<qword>(-1)){//Use next address
+		if ((std::numeric_limits<qword>::max() - next_address_) < ((size == 0u) ? 1u : size))
+			throw memory_error_code::out_of_address_space;
+
 		available_sizes_[(address = next_address_)] = size_info{ block->real_size_, false };
 		next_address_ += block->real_size_;
 	}
@@ -242,15 +250,21 @@ mach::machine::memory_block *mach::machine::memory::allocate_block_(std::size_t 
 
 mach::machine::memory_block *mach::machine::memory::reallocate_block_(qword address, std::size_t size){
 	auto block = find_block_(address);
-	return ((block == nullptr) ? nullptr : reallocate_block_(*block, size));
+	if (block == nullptr)//Error
+		throw memory_error_code::block_not_found;
+
+	return reallocate_block_(*block, size);
 }
 
 mach::machine::memory_block *mach::machine::memory::reallocate_block_(memory_block &block, std::size_t size){
 	if (block.real_size_ < size){//Extend
+		if (dynamic_cast<external_memory_block *>(&block) != nullptr)
+			throw memory_error_code::external_data_extend;
+
 		if (auto free_entry = available_sizes_.find(block.address_ + block.real_size_); free_entry != available_sizes_.end()){
-			if (auto attributes = block.attributes_; !free_entry->second.is_free || free_entry->second.value < size){
+			if (auto attributes = block.attributes_; !free_entry->second.is_free || free_entry->second.value < size){//Cannot accommodate size
 				deallocate_block_(block);
-				return allocate_block_(size, attributes);//Cannot accommodate size
+				return allocate_block_(nullptr, size, attributes);
 			}
 
 			std::prev(free_entry)->second.value = size;
@@ -259,13 +273,17 @@ mach::machine::memory_block *mach::machine::memory::reallocate_block_(memory_blo
 
 			available_sizes_.erase(free_entry);//Erase consumed entry
 		}
-		else{//Extend with next address
+		else if ((size - block.real_size_) <= (std::numeric_limits<qword>::max() - next_address_)){//Extend with next address
 			available_sizes_.rbegin()->second.value = size;
 			next_address_ += (size - block.real_size_);
 		}
+		else
+			throw memory_error_code::out_of_address_space;
 
-		if (size != 0u)//Update values
+		if (size != 0u){//Update values
 			block.real_size_ = block.size_ = size;
+			block.data_ = std::make_unique<byte[]>(block.real_size_);
+		}
 	}
 	else if (size < block.real_size_)//Real size accommodates size
 		block.size_ = size;
@@ -273,23 +291,23 @@ mach::machine::memory_block *mach::machine::memory::reallocate_block_(memory_blo
 	return &block;
 }
 
-bool mach::machine::memory::deallocate_block_(qword address){
+void mach::machine::memory::deallocate_block_(qword address){
 	auto it = blocks_.find(address);
-	if (it == blocks_.end() || !add_free_space_(address))
-		return false;//Block not found OR error
+	if (it == blocks_.end())
+		throw memory_error_code::block_not_found;
 
+	add_free_space_(address);
 	blocks_.erase(it);
-	return true;
 }
 
-bool mach::machine::memory::deallocate_block_(memory_block &block){
-	return deallocate_block_(block.address_);
+void mach::machine::memory::deallocate_block_(memory_block &block){
+	deallocate_block_(block.address_);
 }
 
-bool mach::machine::memory::add_free_space_(qword address){
+void mach::machine::memory::add_free_space_(qword address){
 	auto it = available_sizes_.find(address);
 	if (it == available_sizes_.end())
-		return false;
+		return;
 
 	it->second.is_free = true;
 	if (auto prev_entry = ((it == available_sizes_.begin()) ? available_sizes_.end() : std::prev(it)); prev_entry != available_sizes_.end() && prev_entry->second.is_free){//Merge with previous
@@ -302,8 +320,6 @@ bool mach::machine::memory::add_free_space_(qword address){
 		it->second.value += next_entry->second.value;
 		available_sizes_.erase(next_entry);
 	}
-
-	return true;
 }
 
 mach::machine::memory::qword mach::machine::memory::extract_free_space_(std::size_t size){

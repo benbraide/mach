@@ -41,11 +41,13 @@ namespace mach::machine{
 
 		memory_block *allocate_block(std::size_t size, unsigned int attributes = 0u);
 
+		memory_block *allocate_block(byte *data, std::size_t size, unsigned int attributes = 0u);
+
 		memory_block *reallocate_block(qword address, std::size_t size);
 
 		memory_block *reallocate_block(memory_block &block, std::size_t size);
 
-		bool deallocate_block(qword address);
+		void deallocate_block(qword address);
 
 		memory_block *find_block(qword address) const;
 
@@ -90,17 +92,17 @@ namespace mach::machine{
 
 		void copy_(qword source, io::writer &destination, std::size_t size);
 
-		memory_block *allocate_block_(std::size_t size, unsigned int attributes);
+		memory_block *allocate_block_(byte *data, std::size_t size, unsigned int attributes);
 
 		memory_block *reallocate_block_(qword address, std::size_t size);
 
 		memory_block *reallocate_block_(memory_block &block, std::size_t size);
 
-		bool deallocate_block_(qword address);
+		void deallocate_block_(qword address);
 
-		bool deallocate_block_(memory_block &block);
+		void deallocate_block_(memory_block &block);
 
-		bool add_free_space_(qword address);
+		void add_free_space_(qword address);
 
 		qword extract_free_space_(std::size_t size);
 

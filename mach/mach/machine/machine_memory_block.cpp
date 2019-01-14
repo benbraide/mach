@@ -5,6 +5,8 @@ mach::machine::memory_block::memory_block(qword address, std::size_t size, unsig
 	data_ = std::make_unique<byte[]>(real_size_);
 }
 
+mach::machine::memory_block::memory_block(){}
+
 mach::machine::memory_block::~memory_block(){
 	if (previous_block_ != nullptr){//Remove association
 		if (previous_block_->next_block_ == this)
@@ -58,9 +60,8 @@ std::size_t mach::machine::memory_block::read(qword offset, byte *buffer, std::s
 	if ((real_size_ - offset) < size)//Restrict size
 		size = (real_size_ - offset);
 
-	auto ptr = data_.get();
 	if (0u < size && size <= real_size_)
-		memcpy(buffer, (data_.get() + offset), size);
+		memcpy(buffer, (get_data() + offset), size);
 
 	return ((size <= real_size_) ? size : 0u);
 }
@@ -72,9 +73,8 @@ std::size_t mach::machine::memory_block::write(qword offset, const byte *buffer,
 	if ((real_size_ - offset) < size)//Restrict size
 		size = (real_size_ - offset);
 
-	auto ptr = data_.get();
 	if (0u < size && size <= real_size_)
-		memcpy((data_.get() + offset), buffer, size);
+		memcpy((get_data() + offset), buffer, size);
 
 	return ((size <= real_size_) ? size : 0u);
 }
@@ -87,7 +87,7 @@ std::size_t mach::machine::memory_block::set(qword offset, byte value, std::size
 		size = (real_size_ - offset);
 
 	if (0u < size && size <= real_size_)
-		memset((data_.get() + offset), value, size);
+		memset((get_data() + offset), value, size);
 
 	return ((size <= real_size_) ? size : 0u);
 }
@@ -104,4 +104,17 @@ void mach::machine::memory_block::set_previous_block_(memory_block *block){
 void mach::machine::memory_block::set_next_block_(memory_block *block){
 	block->previous_block_ = this;
 	next_block_ = block;
+}
+
+mach::machine::external_memory_block::external_memory_block(byte *data, qword address, std::size_t size, unsigned int attributes)
+	: external_data_(data){
+	address_ = address;
+	real_size_ = (((size_ = size) == 0u) ? 1u : size);
+	attributes_ = attributes;
+}
+
+mach::machine::external_memory_block::~external_memory_block() = default;
+
+mach::machine::memory_block::byte *mach::machine::external_memory_block::get_data() const{
+	return external_data_;
 }
