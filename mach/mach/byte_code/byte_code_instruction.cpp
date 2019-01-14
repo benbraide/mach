@@ -32,67 +32,72 @@ mach::machine::register_object *mach::byte_code::instruction::get_register(std::
 mach::byte_code::instruction::operand_type mach::byte_code::instruction::extract_operand(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer){
 	switch (extract_value<machine::op_operand_type>(memory, reg_table)){
 	case machine::op_operand_type::reg:
-	{//Extract register
-		auto data = extract_data(sizeof(byte), memory, reg_table, write_to_first_temp_buffer, instruction_error_code::bad_operand);
-		if (data == nullptr)//Error
-			return nullptr;
-
-		return get_register(size, convert_data_to_value<byte>(data), reg_table);
-	}
+		return get_register(size, convert_data_to_value<byte>(extract_data(sizeof(byte), memory, reg_table, write_to_first_temp_buffer)), reg_table);
 	case machine::op_operand_type::mem:
 	{//Extract memory
-		auto key_size = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
-		if (key_size == 0u)//Error
-			return nullptr;
+		auto key_size_type = extract_value<machine::op_operand_size>(memory, reg_table);
+		if (key_size_type == machine::op_operand_size::nil || key_size_type == machine::op_operand_size::dfloat || key_size_type == machine::op_operand_size::qfloat)
+			throw instruction_error_code::bad_operand;//Error
 
-		auto key_count = extract_value<byte>(memory, reg_table, instruction_error_code::bad_operand);
-		if (key_count == 0u)//Error
-			return nullptr;
+		auto op = extract_operand(static_cast<std::size_t>(key_size_type), memory, reg_table, write_to_first_temp_buffer);
+		byte *op_data = nullptr;
+		if (std::holds_alternative<byte *>(op))
+			op_data = std::get<byte *>(op);
+		else if (std::holds_alternative<machine::register_object *>(op))
+			op_data = std::get<machine::register_object *>(op)->get_data();
 
-		if (key_count == 1u){//Single key
-			auto op = extract_operand(key_size, memory, reg_table, write_to_first_temp_buffer);
-			if (!std::holds_alternative<byte *>(op))//Error
-				throw instruction_error_code::bad_operand;
+		if (op_data == nullptr)//Error
+			throw instruction_error_code::bad_operand;
 
-			switch (key_size){
-			case 1u:
-				return static_cast<qword>(convert_data_to_value<unsigned __int8>(std::get<byte *>(op)));
-			case 2u:
-				return static_cast<qword>(convert_data_to_value<unsigned __int16>(std::get<byte *>(op)));
-			case 4u:
-				return static_cast<qword>(convert_data_to_value<unsigned __int32>(std::get<byte *>(op)));
-			case 8u:
-				return convert_data_to_value<unsigned __int64>(std::get<byte *>(op));
-			default://Error
-				break;
-			}
-
-			return nullptr;
-		}
-
-		switch (key_size){
-		case 1u:
-			return static_cast<qword>(extract_offset<unsigned __int8>(key_count, memory, reg_table));
-		case 2u:
-			return static_cast<qword>(extract_offset<unsigned __int16>(key_count, memory, reg_table));
-		case 4u:
-			return static_cast<qword>(extract_offset<unsigned __int32>(key_count, memory, reg_table));
-		case 8u:
-			return extract_offset<unsigned __int64>(key_count, memory, reg_table);
+		switch (key_size_type){
+		case machine::op_operand_size::byte:
+			return static_cast<qword>(convert_data_to_value<unsigned __int8>(op_data));
+		case machine::op_operand_size::word:
+			return static_cast<qword>(convert_data_to_value<unsigned __int16>(op_data));
+		case machine::op_operand_size::dword:
+			return static_cast<qword>(convert_data_to_value<unsigned __int32>(op_data));
+		case machine::op_operand_size::qword:
+			return convert_data_to_value<unsigned __int64>(op_data);
 		default://Error
 			break;
 		}
 
 		return nullptr;
 	}
+	case machine::op_operand_type::mem_with_offset:
+	{//Extract memory with offset as key
+		auto key_size_type = extract_value<machine::op_operand_size>(memory, reg_table);
+		if (key_size_type == machine::op_operand_size::nil)//Error
+			throw instruction_error_code::bad_operand;
+
+		auto key_count = extract_value<byte>(memory, reg_table);
+		if (key_count == 0u)//Error
+			throw instruction_error_code::bad_operand;
+
+		switch (key_size_type){
+		case machine::op_operand_size::byte:
+			return static_cast<qword>(extract_offset<unsigned __int8>(key_count, memory, reg_table));
+		case machine::op_operand_size::word:
+			return static_cast<qword>(extract_offset<unsigned __int16>(key_count, memory, reg_table));
+		case machine::op_operand_size::dword:
+			return static_cast<qword>(extract_offset<unsigned __int32>(key_count, memory, reg_table));
+		case machine::op_operand_size::qword:
+			return extract_offset<unsigned __int64>(key_count, memory, reg_table);
+		default://Error
+			throw instruction_error_code::bad_operand;
+			break;
+		}
+
+		return nullptr;
+	}
 	case machine::op_operand_type::val://Extract immediate value
-		return extract_data(size, memory, reg_table, write_to_first_temp_buffer, instruction_error_code::bad_operand);
+		return extract_data(size, memory, reg_table, write_to_first_temp_buffer);
 	default://Error
 		return nullptr;
 	}
 }
 
-mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer, instruction_error_code e){
+mach::byte_code::instruction::byte *mach::byte_code::instruction::extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer){
 	auto ip = reg_table.get_instruction_pointer()->read_scalar<qword>();
 
 	memory.read(ip, (write_to_first_temp_buffer ? temp_buffer : temp_buffer2), size);
@@ -108,7 +113,7 @@ thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::te
 void mach::byte_code::nop_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){}
 
 void mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){
-	auto size = instruction::extract_value<instruction::byte>(memory, reg_table, instruction_error_code::bad_operand);
+	auto size = instruction::extract_value<instruction::byte>(memory, reg_table);
 
 	auto destination = instruction::extract_operand(size, memory, reg_table, true);
 	auto source = instruction::extract_operand(size, memory, reg_table, false);

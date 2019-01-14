@@ -5,12 +5,50 @@
 #include "../io/io_reader.h"
 #include "../io/io_writer.h"
 
+#include "machine_op_code.h"
+
 namespace mach::machine{
+	template <class buffer_type>
+	struct register_size_type{
+		static const op_operand_size value = op_operand_size::nil;
+	};
+
+	template <>
+	struct register_size_type<unsigned __int8>{
+		static const op_operand_size value = op_operand_size::byte;
+	};
+
+	template <>
+	struct register_size_type<unsigned __int16>{
+		static const op_operand_size value = op_operand_size::word;
+	};
+
+	template <>
+	struct register_size_type<unsigned __int32>{
+		static const op_operand_size value = op_operand_size::dword;
+	};
+
+	template <>
+	struct register_size_type<unsigned __int64>{
+		static const op_operand_size value = op_operand_size::qword;
+	};
+
+	template <>
+	struct register_size_type<float>{
+		static const op_operand_size value = op_operand_size::dfloat;
+	};
+
+	template <>
+	struct register_size_type<long double>{
+		static const op_operand_size value = op_operand_size::qfloat;
+	};
+
 	class register_object : public io::reader, public io::writer{
 	public:
 		using byte = unsigned __int8;
 
-		register_object() = default;
+		explicit register_object(byte index)
+			: index_(index){}
 
 		register_object(const register_object &) = delete;
 
@@ -21,6 +59,12 @@ namespace mach::machine{
 		}
 
 		virtual std::size_t get_size() const = 0;
+
+		virtual op_operand_size get_size_type() const = 0;
+
+		virtual byte get_index() const{
+			return index_;
+		}
 
 		virtual byte *get_data() const = 0;
 
@@ -44,6 +88,9 @@ namespace mach::machine{
 		std::size_t write_buffer(const target_type *buffer, std::size_t size){
 			return write(reinterpret_cast<const byte *>(buffer), (sizeof(target_type) * size));
 		}
+
+	protected:
+		byte index_;
 	};
 
 	template <class buffer_type, class qword_type>
@@ -52,8 +99,15 @@ namespace mach::machine{
 		using m_buffer_type = buffer_type;
 		using m_qword_type = qword_type;
 
+		explicit generic_register(byte index)
+			: register_object(index){}
+
 		virtual std::size_t get_size() const override{
 			return sizeof(m_buffer_type);
+		}
+
+		virtual op_operand_size get_size_type() const override{
+			return register_size_type<m_buffer_type>::template value;
 		}
 
 		virtual m_qword_type read_qword() const{
@@ -82,7 +136,7 @@ namespace mach::machine{
 		using m_qword_type = qword_type;
 
 		explicit child_register(register_object &parent)
-			: parent_(parent){}
+			: generic_register<buffer_type, qword_type>(parent.get_index()), parent_(parent){}
 
 		virtual register_object::byte *get_data() const override{
 			return parent_.get_data();
@@ -110,6 +164,9 @@ namespace mach::machine{
 	public:
 		using m_buffer_type = buffer_type;
 		using m_qword_type = qword_type;
+
+		explicit qword_register(register_object::byte index)
+			: generic_register<buffer_type, qword_type>(index){}
 
 		virtual register_object::byte *get_data() const override{
 			return const_cast<register_object::byte *>(reinterpret_cast<const register_object::byte *>(&buffer_));

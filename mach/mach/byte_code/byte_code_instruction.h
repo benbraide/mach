@@ -26,22 +26,18 @@ namespace mach::byte_code{
 
 		static operand_type extract_operand(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer = true);
 
-		static byte *extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer = true, instruction_error_code e = instruction_error_code::nil);
+		static byte *extract_data(std::size_t size, machine::memory &memory, machine::register_table &reg_table, bool write_to_first_temp_buffer = true);
 
 		template <typename target_type>
-		static target_type extract_value(machine::memory &memory, machine::register_table &reg_table, instruction_error_code e = instruction_error_code::nil){
-			auto data = extract_data(sizeof(target_type), memory, reg_table, false, e);
-			if (data == nullptr)//Error
-				return target_type();
-
-			return convert_data_to_value<target_type>(data);
+		static target_type extract_value(machine::memory &memory, machine::register_table &reg_table){
+			return convert_data_to_value<target_type>(extract_data(sizeof(target_type), memory, reg_table, false));
 		}
 
 		template <typename target_type>
 		static target_type extract_offset(std::size_t count, machine::memory &memory, machine::register_table &reg_table){
 			auto value = target_type();
 			for (; 0u < count; --count){
-				switch (extract_value<machine::op_offset_operator>(memory, reg_table, instruction_error_code::bad_operand)){
+				switch (extract_value<machine::op_offset_operator>(memory, reg_table)){
 				case machine::op_offset_operator::plus:
 					value += convert_operand_to_value<target_type>(extract_operand(sizeof(target_type), memory, reg_table, false));
 					break;
