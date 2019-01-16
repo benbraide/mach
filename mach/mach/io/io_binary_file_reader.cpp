@@ -26,13 +26,29 @@ mach::io::binary_file_reader &mach::io::binary_file_reader::operator=(binary_fil
 	return *this;
 }
 
+std::size_t mach::io::binary_file_reader::get_offset() const{
+	return offset_;
+}
+
 std::size_t mach::io::binary_file_reader::get_bytes_remaining() const{
 	return (size_ - offset_);
 }
 
+std::size_t mach::io::binary_file_reader::ignore(std::size_t size) const{
+	if ((size_ - offset_) < size)
+		size = (size_ - offset_);//Adjust size
+
+	if (0u < size){//Valid size
+		stream_.ignore(size);
+		offset_ += size;
+	}
+
+	return size;
+}
+
 std::size_t mach::io::binary_file_reader::read(byte *buffer, std::size_t size) const{
-	if (auto remaining_ = (size_ - offset_); remaining_ < size)
-		size = remaining_;//Adjust size
+	if ((size_ - offset_) < size)
+		size = (size_ - offset_);//Adjust size
 
 	if (0u < size){//Valid size
 		stream_.read(reinterpret_cast<char *>(buffer), size);

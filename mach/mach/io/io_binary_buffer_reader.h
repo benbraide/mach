@@ -1,18 +1,17 @@
 #pragma once
 
 #include <string>
-#include <fstream>
 
 #include "io_binary_reader.h"
 
 namespace mach::io{
-	class binary_file_reader : public binary_reader{
+	class binary_buffer_reader : public binary_reader{
 	public:
-		explicit binary_file_reader(const std::string &stream);
+		binary_buffer_reader(byte *buffer, std::size_t size, std::size_t offset = 0u);
 
-		binary_file_reader(binary_file_reader &&reader);
+		binary_buffer_reader(binary_buffer_reader &&reader);
 
-		binary_file_reader &operator =(binary_file_reader &&reader);
+		binary_buffer_reader &operator =(binary_buffer_reader &&reader);
 
 		virtual std::size_t get_offset() const override;
 
@@ -23,7 +22,7 @@ namespace mach::io{
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
 	private:
-		mutable std::ifstream stream_;
+		byte *buffer_;
 		std::size_t size_ = 0u;
 		mutable std::size_t offset_ = 0u;
 	};

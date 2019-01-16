@@ -54,8 +54,16 @@ namespace mach::machine{
 
 		register_object &operator =(const register_object &) = delete;
 
+		virtual std::size_t get_offset() const override{
+			return 0u;
+		}
+
 		virtual std::size_t get_bytes_remaining() const override{
 			return get_size();
+		}
+
+		virtual std::size_t ignore(std::size_t size) const override{
+			return 0u;
 		}
 
 		virtual std::size_t get_size() const = 0;

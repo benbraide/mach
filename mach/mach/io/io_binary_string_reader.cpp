@@ -19,13 +19,25 @@ mach::io::binary_string_reader &mach::io::binary_string_reader::operator=(binary
 	return *this;
 }
 
+std::size_t mach::io::binary_string_reader::get_offset() const{
+	return offset_;
+}
+
 std::size_t mach::io::binary_string_reader::get_bytes_remaining() const{
 	return (stream_.size() - offset_);
 }
 
+std::size_t mach::io::binary_string_reader::ignore(std::size_t size) const{
+	if ((stream_.size() - offset_) < size)
+		size = (stream_.size() - offset_);//Adjust size
+
+	offset_ += size;
+	return size;
+}
+
 std::size_t mach::io::binary_string_reader::read(byte *buffer, std::size_t size) const{
-	if (auto remaining_ = (stream_.size() - offset_); remaining_ < size)
-		size = remaining_;//Adjust size
+	if ((stream_.size() - offset_) < size)
+		size = (stream_.size() - offset_);//Adjust size
 
 	if (0u < size){//Valid size
 		memcpy(buffer, (stream_.data() + offset_), size);

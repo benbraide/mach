@@ -58,7 +58,7 @@ namespace mach::asm_code{
 		}
 	};
 
-	using nop_instruction		= instruction_with_no_operands<machine::op_code::nop>;
+	using noop_instruction		= instruction_with_no_operands<machine::op_code::noop>;
 	using leave_instruction		= instruction_with_no_operands<machine::op_code::leave>;
 	using ret_instruction		= instruction_with_no_operands<machine::op_code::ret>;
 	using syscall_instruction	= instruction_with_no_operands<machine::op_code::syscall>;

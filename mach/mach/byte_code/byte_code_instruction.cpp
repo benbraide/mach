@@ -110,8 +110,6 @@ thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::te
 
 thread_local mach::byte_code::instruction::byte mach::byte_code::instruction::temp_buffer2[sizeof(qword)];
 
-void mach::byte_code::nop_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){}
-
 void mach::byte_code::mov_instruction::execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack){
 	auto size = instruction::extract_value<instruction::byte>(memory, reg_table);
 

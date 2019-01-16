@@ -78,11 +78,6 @@ namespace mach::byte_code{
 		thread_local static byte temp_buffer2[sizeof(qword)];
 	};
 
-	class nop_instruction{
-	public:
-		static void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack);
-	};
-
 	class mov_instruction{
 	public:
 		static void execute(machine::memory &memory, machine::register_table &reg_table, machine::stack &stack);

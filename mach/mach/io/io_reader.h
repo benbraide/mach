@@ -9,7 +9,11 @@ namespace mach::io{
 
 		virtual ~reader() = default;
 
+		virtual std::size_t get_offset() const = 0;
+
 		virtual std::size_t get_bytes_remaining() const = 0;
+
+		virtual std::size_t ignore(std::size_t size) const = 0;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const = 0;
 

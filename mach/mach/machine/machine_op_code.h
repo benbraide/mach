@@ -27,7 +27,7 @@ namespace mach::machine{
 	};
 
 	enum class op_code : unsigned __int8{
-		nop,
+		noop,
 		push,
 		pop,
 		mov,

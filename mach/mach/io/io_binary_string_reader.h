@@ -15,7 +15,11 @@ namespace mach::io{
 
 		binary_string_reader &operator =(binary_string_reader &&reader);
 
+		virtual std::size_t get_offset() const override;
+
 		virtual std::size_t get_bytes_remaining() const override;
+
+		virtual std::size_t ignore(std::size_t size) const override;
 
 		virtual std::size_t read(byte *buffer, std::size_t size) const override;
 
