@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "../io/io_writer.h"
@@ -55,8 +56,11 @@ namespace mach::asm_code{
 
 	class immediate_instruction_operand : public instruction_operand{
 	public:
+		immediate_instruction_operand();
+
 		template <typename value_type>
-		explicit immediate_instruction_operand(value_type value = value_type()){
+		explicit immediate_instruction_operand(value_type value){
+			memset(data_, 0, sizeof(unsigned __int64));
 			memcpy(data_, &value, sizeof(value_type));
 		}
 
@@ -74,10 +78,40 @@ namespace mach::asm_code{
 		target_type get_data_as() const{
 			auto value = target_type();
 			memcpy(&value, data_, ((sizeof(target_type) < sizeof(unsigned __int64)) ? sizeof(target_type) : sizeof(unsigned __int64)));
+			return value;
 		}
 
-	private:
+	protected:
 		mutable byte data_[sizeof(unsigned __int64)];
+	};
+
+	class label_ref_instruction_operand : public immediate_instruction_operand{
+	public:
+		explicit label_ref_instruction_operand(const std::string &name);
+
+		const std::string &get_name() const;
+
+		template <typename value_type>
+		void set_data(value_type value){
+			memcpy(data_, &value, ((sizeof(value_type) < sizeof(unsigned __int64)) ? sizeof(value_type) : sizeof(unsigned __int64)));
+		}
+
+	protected:
+		std::string name_;
+	};
+
+	class placeholder_instruction_operand : public label_ref_instruction_operand{
+	public:
+		placeholder_instruction_operand();
+	};
+
+	class uninitialized_instruction_operand : public instruction_operand{
+	public:
+		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
+
+		virtual machine::op_operand_type get_type() const override;
+
+		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
 	};
 
 	class offset_instruction_operand : public instruction_operand{
@@ -98,6 +132,8 @@ namespace mach::asm_code{
 		virtual machine::op_operand_size get_size_type() const override;
 
 		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
+
+		virtual const std::vector<part_info> &get_parts() const;
 
 	private:
 		virtual void resolve_size_type_();

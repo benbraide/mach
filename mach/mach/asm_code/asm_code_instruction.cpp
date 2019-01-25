@@ -1,11 +1,11 @@
 #include "asm_code_instruction.h"
 
-mach::asm_code::instruction::instruction(const std::vector<std::shared_ptr<instruction_operand>> &operands)
+mach::asm_code::instruction::instruction(const op_operand_type &operands)
 	: operands_(operands){
 	resolve_size_type_();
 }
 
-mach::asm_code::instruction::instruction(std::vector<std::shared_ptr<instruction_operand>> &&operands)
+mach::asm_code::instruction::instruction(op_operand_type &&operands)
 	: operands_(std::move(operands)){
 	resolve_size_type_();
 }
@@ -14,12 +14,15 @@ void mach::asm_code::instruction::encode(io::writer &writer, machine::register_t
 	if (size_type_ == machine::op_operand_size::error)
 		return;//Error
 
+	encode_meta(writer);
+	for (auto operand : operands_)
+		operand->encode(size_type_, writer, reg_table);
+}
+
+void mach::asm_code::instruction::encode_meta(io::writer &writer) const{
 	writer.write_scalar(get_op_code());
 	if (!operands_.empty())
 		writer.write_scalar(get_size_type());
-
-	for (auto operand : operands_)
-		operand->encode(size_type_, writer, reg_table);
 }
 
 mach::machine::op_operand_size mach::asm_code::instruction::get_size_type() const{
@@ -34,10 +37,11 @@ std::size_t mach::asm_code::instruction::get_encoded_size() const{
 	for (auto operand : operands_)
 		operands_encoded_size += operand->get_encoded_size(size_type_);
 
-	if (operands_.empty())
-		return (sizeof(machine::op_code) + operands_encoded_size);
+	return (get_meta_encoded_size() + operands_encoded_size);
+}
 
-	return (sizeof(machine::op_code) + sizeof(machine::op_operand_size) + operands_encoded_size);
+std::size_t mach::asm_code::instruction::get_meta_encoded_size() const{
+	return (operands_.empty() ? sizeof(machine::op_code) : (sizeof(machine::op_code) + sizeof(machine::op_operand_size)));
 }
 
 void mach::asm_code::instruction::validate_operands() const{
@@ -55,6 +59,10 @@ void mach::asm_code::instruction::validate_operands() const{
 		if (!is_valid_operand_type_(operand->get_type(), index++) || !is_valid_size_type_(operand->get_size_type()))
 			throw instruction_error_code::bad_operand;
 	}
+}
+
+const mach::asm_code::instruction::op_operand_type &mach::asm_code::instruction::get_operands() const{
+	return operands_;
 }
 
 void mach::asm_code::instruction::resolve_size_type_(){
@@ -82,10 +90,10 @@ bool mach::asm_code::instruction::is_valid_operand_type_(machine::op_operand_typ
 	return true;
 }
 
-mach::asm_code::mov_instruction::mov_instruction(const std::vector<std::shared_ptr<instruction_operand>> &operands)
+mach::asm_code::mov_instruction::mov_instruction(const op_operand_type &operands)
 	: instruction(operands){}
 
-mach::asm_code::mov_instruction::mov_instruction(std::vector<std::shared_ptr<instruction_operand>> &&operands)
+mach::asm_code::mov_instruction::mov_instruction(op_operand_type &&operands)
 	: instruction(std::move(operands)){}
 
 mach::machine::op_code mach::asm_code::mov_instruction::get_op_code() const{

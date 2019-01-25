@@ -3,12 +3,6 @@
 mach::machine::op_operand_size mach::asm_code::instruction_operand::get_size_type() const{
 	return machine::op_operand_size::nil;
 }
-/*
-
-std::size_t mach::asm_code::instruction_operand::get_encoded_size(machine::op_operand_size size_type) const{
-	return (sizeof(machine::op_operand_type) + static_cast<std::size_t>(size_type));
-}
-*/
 
 mach::asm_code::regiester_instruction_operand::regiester_instruction_operand(machine::register_object &reg)
 	: reg_(&reg){}
@@ -59,7 +53,12 @@ std::size_t mach::asm_code::memory_instruction_operand::get_encoded_size(machine
 	return (sizeof(machine::op_operand_type) + sizeof(machine::op_operand_size) + key_->get_encoded_size(machine::op_operand_size::qword));
 }
 
+mach::asm_code::immediate_instruction_operand::immediate_instruction_operand(){
+	memset(data_, 0, sizeof(unsigned __int64));
+}
+
 mach::asm_code::immediate_instruction_operand::immediate_instruction_operand(const byte *data, std::size_t size){
+	memset(data_, 0, sizeof(unsigned __int64));
 	memcpy(data_, data, ((size < sizeof(unsigned __int64)) ? size : sizeof(unsigned __int64)));
 }
 
@@ -78,6 +77,28 @@ std::size_t mach::asm_code::immediate_instruction_operand::get_encoded_size(mach
 
 mach::asm_code::instruction_operand::byte *mach::asm_code::immediate_instruction_operand::get_data() const{
 	return data_;
+}
+
+mach::asm_code::label_ref_instruction_operand::label_ref_instruction_operand(const std::string &name)
+	: name_(name){}
+
+const std::string &mach::asm_code::label_ref_instruction_operand::get_name() const{
+	return name_;
+}
+
+mach::asm_code::placeholder_instruction_operand::placeholder_instruction_operand()
+	: label_ref_instruction_operand(""){}
+
+void mach::asm_code::uninitialized_instruction_operand::encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const{
+	//Offset writer
+}
+
+mach::machine::op_operand_type mach::asm_code::uninitialized_instruction_operand::get_type() const{
+	return machine::op_operand_type::val;
+}
+
+std::size_t mach::asm_code::uninitialized_instruction_operand::get_encoded_size(machine::op_operand_size size_type) const{
+	return static_cast<std::size_t>(size_type);
 }
 
 mach::asm_code::offset_instruction_operand::offset_instruction_operand(const std::vector<part_info> &parts)
@@ -111,6 +132,10 @@ std::size_t mach::asm_code::offset_instruction_operand::get_encoded_size(machine
 		size_type = size_type_;//Use this size type
 
 	return (sizeof(machine::op_operand_size) + sizeof(machine::op_operand_type) + sizeof(byte) + (sizeof(machine::op_offset_operator) * parts_.size()) + (static_cast<std::size_t>(size_type) * parts_.size()));
+}
+
+const std::vector<mach::asm_code::offset_instruction_operand::part_info> &mach::asm_code::offset_instruction_operand::get_parts() const{
+	return parts_;
 }
 
 void mach::asm_code::offset_instruction_operand::resolve_size_type_(){

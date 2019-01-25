@@ -1,0 +1,28 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_DECLARE_SINGLE(n, t) struct MACH_AST_NAME(n){ using MACH_AST_SINGLE_FIELD_TYPE = t; MACH_AST_SINGLE_FIELD_TYPE MACH_AST_SINGLE_FIELD_NAME; };
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_DECLARE_SINGLE_WPOS(n, t) struct MACH_AST_NAME(n) : MACH_AST_WPOS{ using MACH_AST_SINGLE_FIELD_TYPE = t; MACH_AST_SINGLE_FIELD_TYPE MACH_AST_SINGLE_FIELD_NAME; };
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_DECLARE_PAIR(n, t1, t2) struct MACH_AST_NAME(n){ using MACH_AST_MULTIPLE_FIRST_FIELD_TYPE = t1; using MACH_AST_MULTIPLE_SECOND_FIELD_TYPE = t2; MACH_AST_MULTIPLE_FIRST_FIELD_TYPE MACH_AST_MULTIPLE_FIRST_FIELD_NAME; MACH_AST_MULTIPLE_SECOND_FIELD_TYPE MACH_AST_MULTIPLE_SECOND_FIELD_NAME; };
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_NAME(n) MACH_AST_JOIN(n, _ast)
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_DECLARE_PAIR_WPOS(n, t1, t2) struct MACH_AST_NAME(n) : MACH_AST_WPOS{ using MACH_AST_MULTIPLE_FIRST_FIELD_TYPE = t1; using MACH_AST_MULTIPLE_SECOND_FIELD_TYPE = t2; MACH_AST_MULTIPLE_FIRST_FIELD_TYPE MACH_AST_MULTIPLE_FIRST_FIELD_NAME; MACH_AST_MULTIPLE_SECOND_FIELD_TYPE MACH_AST_MULTIPLE_SECOND_FIELD_NAME; };
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_VARIANT(__VA_ARGS__) MACH_AST_TEMPLATE_TYPE(boost::variant, __VA_ARGS__)
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define MACH_AST_DECLARE_SINGLE_VARIANT(n, __VA_ARGS__) struct MACH_AST_NAME(n){ using MACH_AST_SINGLE_FIELD_TYPE = MACH_AST_VARIANT(__VA_ARGS__); MACH_AST_SINGLE_FIELD_TYPE MACH_AST_SINGLE_FIELD_NAME; };
