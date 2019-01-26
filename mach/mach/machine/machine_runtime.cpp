@@ -30,7 +30,7 @@ void mach::machine::runtime::run(){
 	reg_table_.get_instruction_pointer()->write_scalar(entry_);
 	while (stack_ != nullptr){
 		switch (memory_.read_scalar<op_code>(reg_table_.get_instruction_pointer()->read_scalar<qword>())){
-		case op_code::noop://No operation
+		case op_code::nop://No operation
 			break;
 		case op_code::mov:
 			byte_code::mov_instruction::execute(memory_, reg_table_, *stack_);

@@ -282,8 +282,8 @@ namespace mach::parsing{
 
 		static std::shared_ptr<asm_code::instruction> create_instruction(machine::op_code op_code, std::vector<std::shared_ptr<asm_code::instruction_operand>> &operands){
 			switch (op_code){
-			case machine::op_code::noop:
-				return std::make_shared<asm_code::noop_instruction>(std::move(operands));
+			case machine::op_code::nop:
+				return std::make_shared<asm_code::nop_instruction>(std::move(operands));
 			case machine::op_code::push:
 				return nullptr;
 			case machine::op_code::pop:
@@ -396,3 +396,44 @@ namespace mach::parsing{
 		asm_code::translation_state *state_;
 	};
 }
+
+MACH_AST_ADAPT_SINGLE(asm_uninitialized_value)
+MACH_AST_ADAPT_SINGLE(asm_position_placeholder)
+
+MACH_AST_ADAPT_SINGLE(asm_integral_value)
+MACH_AST_ADAPT_SINGLE(asm_float_value)
+
+MACH_AST_ADAPT_SINGLE(asm_char_value)
+MACH_AST_ADAPT_SINGLE(asm_string_value)
+
+MACH_AST_ADAPT_SINGLE(asm_section)
+
+MACH_AST_ADAPT_SINGLE(asm_stack)
+MACH_AST_ADAPT_SINGLE(asm_global)
+
+MACH_AST_ADAPT_PAIR(asm_label)
+MACH_AST_ADAPT_SINGLE(asm_identifier)
+MACH_AST_ADAPT_SINGLE(asm_any_identifier)
+
+MACH_AST_ADAPT_SINGLE(decl_expression_term)
+MACH_AST_ADAPT_SINGLE(decl_grouped_expression)
+MACH_AST_ADAPT_TRIO(decl_product_expression)
+
+MACH_AST_ADAPT_TRIO(decl_sum_expression)
+
+MACH_AST_ADAPT_PAIR(asm_offset_item)
+MACH_AST_ADAPT_TRIO(asm_offset)
+MACH_AST_ADAPT_PAIR(asm_memory)
+
+MACH_AST_ADAPT_PAIR(asm_instruction)
+MACH_AST_ADAPT_PAIR(asm_times_instruction)
+
+MACH_AST_ADAPT_PAIR(asm_db)
+
+MACH_AST_ADAPT_SINGLE(asm_dz)
+MACH_AST_ADAPT_SINGLE(asm_ds)
+
+MACH_AST_ADAPT_PAIR(asm_decl)
+MACH_AST_ADAPT_PAIR(asm_equ)
+
+MACH_AST_ADAPT_SINGLE(asm_program)
