@@ -14,11 +14,11 @@ namespace mach::asm_code{
 	class instruction{
 	public:
 		using byte = instruction_operand::byte;
-		using op_operand_type = std::vector<std::shared_ptr<instruction_operand>>;
+		using operand_type = std::vector<std::shared_ptr<instruction_operand>>;
 
-		explicit instruction(const op_operand_type &operands);
+		explicit instruction(const operand_type &operands);
 
-		explicit instruction(op_operand_type &&operands);
+		explicit instruction(operand_type &&operands);
 
 		virtual void encode(io::writer &writer, machine::register_table &reg_table) const;
 
@@ -34,7 +34,9 @@ namespace mach::asm_code{
 
 		virtual void validate_operands() const;
 
-		virtual const op_operand_type &get_operands() const;
+		virtual void resolve_operands();
+
+		virtual void traverse_operands(const std::function<void(const instruction_operand &)> &callback, bool deep = true) const;
 
 	protected:
 		virtual void resolve_size_type_();
@@ -46,7 +48,7 @@ namespace mach::asm_code{
 		virtual bool is_valid_operand_type_(machine::op_operand_type operand_type, std::size_t index) const;
 
 		machine::op_operand_size size_type_;
-		op_operand_type operands_;
+		operand_type operands_;
 	};
 
 	template <machine::op_code op_code>
@@ -54,6 +56,12 @@ namespace mach::asm_code{
 	public:
 		instruction_with_no_operands()
 			: instruction({}){}
+
+		explicit instruction_with_no_operands(const operand_type &operands)
+			: instruction(operands){}
+
+		explicit instruction_with_no_operands(operand_type &&operands)
+			: instruction(std::move(operands)){}
 
 		virtual machine::op_code get_op_code() const override{
 			return op_code;
@@ -72,9 +80,9 @@ namespace mach::asm_code{
 
 	class mov_instruction : public instruction{
 	public:
-		explicit mov_instruction(const op_operand_type &operands);
+		explicit mov_instruction(const operand_type &operands);
 
-		explicit mov_instruction(op_operand_type &&operands);
+		explicit mov_instruction(operand_type &&operands);
 
 		virtual machine::op_code get_op_code() const override;
 

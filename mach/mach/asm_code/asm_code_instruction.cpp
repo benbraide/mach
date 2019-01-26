@@ -1,11 +1,11 @@
 #include "asm_code_instruction.h"
 
-mach::asm_code::instruction::instruction(const op_operand_type &operands)
+mach::asm_code::instruction::instruction(const operand_type &operands)
 	: operands_(operands){
 	resolve_size_type_();
 }
 
-mach::asm_code::instruction::instruction(op_operand_type &&operands)
+mach::asm_code::instruction::instruction(operand_type &&operands)
 	: operands_(std::move(operands)){
 	resolve_size_type_();
 }
@@ -56,13 +56,24 @@ void mach::asm_code::instruction::validate_operands() const{
 
 	std::size_t index = 0u;
 	for (auto operand : operands_){//Validate operands size types
+		operand->validate_operands();
 		if (!is_valid_operand_type_(operand->get_type(), index++) || !is_valid_size_type_(operand->get_size_type()))
 			throw instruction_error_code::bad_operand;
 	}
 }
 
-const mach::asm_code::instruction::op_operand_type &mach::asm_code::instruction::get_operands() const{
-	return operands_;
+void mach::asm_code::instruction::resolve_operands(){
+	for (auto operand : operands_)
+		operand->resolve_operands();
+}
+
+void mach::asm_code::instruction::traverse_operands(const std::function<void(const instruction_operand &)> &callback, bool deep) const{
+	for (auto operand : operands_){
+		if (deep)
+			operand->traverse_operands(callback, true);
+		else
+			callback(*operand);
+	}
 }
 
 void mach::asm_code::instruction::resolve_size_type_(){
@@ -90,10 +101,10 @@ bool mach::asm_code::instruction::is_valid_operand_type_(machine::op_operand_typ
 	return true;
 }
 
-mach::asm_code::mov_instruction::mov_instruction(const op_operand_type &operands)
+mach::asm_code::mov_instruction::mov_instruction(const operand_type &operands)
 	: instruction(operands){}
 
-mach::asm_code::mov_instruction::mov_instruction(op_operand_type &&operands)
+mach::asm_code::mov_instruction::mov_instruction(operand_type &&operands)
 	: instruction(std::move(operands)){}
 
 mach::machine::op_code mach::asm_code::mov_instruction::get_op_code() const{
