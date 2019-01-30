@@ -16,7 +16,7 @@ namespace mach::machine{
 
 		register_table();
 
-		register_object *find(const std::string &key) const;
+		register_object *find(const std::string &key, bool case_sensitive = true) const;
 
 		register_object *get_base_pointer() const;
 

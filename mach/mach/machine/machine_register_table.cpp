@@ -66,7 +66,18 @@ mach::machine::register_table::register_table(){
 	cache_.instruction_pointer = registers_["rip"].get();
 }
 
-mach::machine::register_object *mach::machine::register_table::find(const std::string &key) const{
+mach::machine::register_object *mach::machine::register_table::find(const std::string &key, bool case_sensitive) const{
+	if (case_sensitive){
+		auto it = registers_.find(key);
+		return ((it == registers_.end()) ? nullptr : it->second.get());
+	}
+
+	std::string converted_key;
+	converted_key.reserve(key.size());
+
+	for (auto c : key)
+		converted_key.push_back(tolower(c));
+
 	auto it = registers_.find(key);
 	return ((it == registers_.end()) ? nullptr : it->second.get());
 }

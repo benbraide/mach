@@ -1,21 +1,30 @@
+#include <iostream>
+
 #include "machine/machine_memory.h"
 #include "machine/machine_register_table.h"
 
-#include "parsing/ast.h"
+#include "parsing/asm_grammar.h"
 
 int main(){
-	mach::machine::register_table rt;
+	std::string data = "bytes equ label + 9 ";
+	MACH_AST_QNAME(asm_program) ast;
 
-	MACH_AST_QNAME(mach_identifier) mi;
-	mi.value = "";
+	auto begin = data.begin();
+	auto end = data.end();
 
-	MACH_AST_DECLARE_SINGLE_VARIANT(sv, int, char, float);
-	MACH_AST_NAME(sv) svi;
-	svi.value = 9;
+	boost::spirit::x3::error_handler<std::string::iterator> error_handler(begin, end, std::cerr);
+	mach::asm_code::translation_state ts;
 
-	MACH_AST_DECLARE_SINGLE(sv2, MACH_AST_VARIANT(int, char, float));
-	MACH_AST_NAME(sv2) sv2i;
-	sv2i.value = 9;
+	auto const parser_with_ts = boost::spirit::x3::with<MACH_GRAMMAR_TAG_QNAME(asm_translation_state)>(std::ref(ts))[MACH_GRAMMAR_QNAME(asm_program)];
+	auto const parser = boost::spirit::x3::with<boost::spirit::x3::error_handler_tag>(std::ref(error_handler))[parser_with_ts];
+
+	auto result = boost::spirit::x3::phrase_parse(
+		begin,
+		end,
+		parser,
+		MACH_GRAMMAR_QNAME(asm_skip),
+		ast
+	);
 
 	return 0;
 }

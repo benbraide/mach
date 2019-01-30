@@ -78,5 +78,6 @@ namespace mach::machine{
 		test,
 		not_,
 		cmp,
+		cnvt,
 	};
 }

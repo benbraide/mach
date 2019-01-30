@@ -18,6 +18,7 @@
 
 #define MACH_AST_NAME(n) MACH_AST_JOIN(n, _ast)
 #define MACH_AST_QNAME(n) mach::parsing::MACH_AST_NAME(n)
+#define MACH_AST_FORWARD_NAME(n) boost::spirit::x3::forward_ast<MACH_AST_NAME(n)>
 
 #define MACH_AST_SINGLE_FIELD_TYPE value_type
 #define MACH_AST_SINGLE_FIELD_NAME value
@@ -120,7 +121,7 @@ BOOST_FUSION_ADAPT_STRUCT(																			\
 )
 
 namespace mach::parsing{
-	MACH_AST_DECLARE_SINGLE(mach_identifier, std::string)
+	MACH_AST_DECLARE_SINGLE_WPOS(mach_identifier, std::string)
 }
 
 MACH_AST_ADAPT_SINGLE(mach_identifier)
