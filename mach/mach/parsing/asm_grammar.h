@@ -173,7 +173,7 @@ namespace mach::parsing{
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_expected_char_value) = ("'" >> ((x3::char_('\\') > (('x' >> asm_int8_hex) | ('b' >> asm_int8_bin) | ('0' >> asm_int8_oct) | asm_int8_dec | MACH_GRAMMAR_SYMBOLS_NAME(asm_escaped_character) | x3::char_)) | ~x3::char_("'")) > "'");
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_string_value);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_string_value) = ("'" > x3::lexeme[*((x3::char_('\\') >> (('x' >> asm_int8_hex) | ('b' >> asm_int8_bin) | ('0' >> asm_int8_oct) | asm_int8_dec | MACH_GRAMMAR_SYMBOLS_NAME(asm_escaped_character) | x3::char_)) | ~x3::char_("'"))] > "'");
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_string_value) = ("'" > x3::lexeme[+((x3::char_('\\') >> (('x' >> asm_int8_hex) | ('b' >> asm_int8_bin) | ('0' >> asm_int8_oct) | asm_int8_dec | MACH_GRAMMAR_SYMBOLS_NAME(asm_escaped_character) | x3::char_)) | ~x3::char_("'"))] > "'");
 
 	MACH_GRAMMAR_DECLARE_RULE4(asm_register, mach_identifier, asm_register);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_register) = helper::keyword(MACH_GRAMMAR_NAME(mach_identifier));
@@ -324,7 +324,7 @@ namespace mach::parsing{
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_dz) = (helper::keyword(x3::no_case[".zero"]) > x3::uint64);
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_ds);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_ds) = (helper::keyword(x3::no_case[".string"]) > (MACH_GRAMMAR_NAME(asm_char_value) | MACH_GRAMMAR_NAME(asm_string_value)));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_ds) = (helper::keyword(x3::no_case[".string"]) > MACH_GRAMMAR_NAME(asm_string_value));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_decl);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_decl) = (MACH_GRAMMAR_NAME(mach_identifier) >> (MACH_GRAMMAR_NAME(asm_db) | MACH_GRAMMAR_NAME(asm_dz) | MACH_GRAMMAR_NAME(asm_ds)));

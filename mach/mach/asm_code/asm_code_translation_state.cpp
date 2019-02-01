@@ -156,13 +156,16 @@ mach::machine::register_table &mach::asm_code::translation_state::get_reg_table(
 	return reg_table_;
 }
 
-void mach::asm_code::translation_state::update_offsets(unsigned __int64 start_offset){
+std::size_t mach::asm_code::translation_state::update_offsets(unsigned __int64 start_offset){
+	auto offset = start_offset;
 	for (auto &section : sections_){
 		if (section.first != section_type::header){
-			section.second->update_offset(start_offset);
-			start_offset += section.second->get_offset();
+			section.second->update_offset(offset);
+			offset += section.second->get_offset();
 		}
 	}
+
+	return (offset - start_offset);
 }
 
 mach::asm_code::translation_label *mach::asm_code::translation_state::add_label(const std::string &name, bool nested){
@@ -223,4 +226,20 @@ void mach::asm_code::translation_state::leave_data_instruction(){
 
 bool mach::asm_code::translation_state::is_inside_data_instruction() const{
 	return is_inside_data_instruction_;
+}
+
+void mach::asm_code::translation_state::set_stack_size(std::size_t value){
+	stack_size_ = value;
+}
+
+std::size_t mach::asm_code::translation_state::get_stack_size() const{
+	return stack_size_;
+}
+
+void mach::asm_code::translation_state::set_entry(std::size_t value){
+	entry_ = value;
+}
+
+std::size_t mach::asm_code::translation_state::get_entry() const{
+	return entry_;
 }

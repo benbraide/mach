@@ -8,16 +8,11 @@
 #include "ast.h"
 
 namespace mach::parsing{
+	using decl_type = asm_code::decl_type;
+
 	enum class header_item_type{
 		stack,
 		global,
-	};
-
-	enum class decl_type{
-		db,
-		dw,
-		dd,
-		dq,
 	};
 
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_uninitialized_value, char);
@@ -116,7 +111,7 @@ namespace mach::parsing{
 	);
 
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_dz, unsigned __int64);
-	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(asm_ds, MACH_AST_NAME(asm_char_value), MACH_AST_NAME(asm_string_value));
+	MACH_AST_DECLARE_SINGLE_WPOS(asm_ds, MACH_AST_NAME(asm_string_value));
 
 	MACH_AST_DECLARE_PAIR_WPOS(asm_decl, MACH_AST_NAME(mach_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_db), MACH_AST_NAME(asm_dz), MACH_AST_NAME(asm_ds)));
 	MACH_AST_DECLARE_PAIR_WPOS(asm_equ, MACH_AST_NAME(mach_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier), MACH_AST_NAME(asm_offset)));
@@ -152,15 +147,15 @@ namespace mach::parsing{
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_integral_value) &ast) const{
-			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, state_->is_inside_data_instruction());
+			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_float_value) &ast) const{
-			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, state_->is_inside_data_instruction());
+			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_char_value) &ast) const{
-			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, state_->is_inside_data_instruction(), asm_code::immediate_instruction_operand::held_value_type::char_);
+			return std::make_shared<asm_code::immediate_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, asm_code::immediate_instruction_operand::held_value_type::char_);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_string_value) &ast) const{
@@ -170,10 +165,18 @@ namespace mach::parsing{
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(mach_identifier) &ast) const{
-			//return std::make_shared<asm_code::register_instruction_operand>(*state_->get_reg_table().find(ast.MACH_AST_SINGLE_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME, false));
 			if (ast.MACH_AST_SINGLE_FIELD_NAME.size() == 1u && ast.MACH_AST_SINGLE_FIELD_NAME[0] == '$')
-				return std::make_shared<asm_code::placeholder_instruction_operand>(state_->is_inside_data_instruction());
-			return std::make_shared<asm_code::label_ref_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, state_->is_inside_data_instruction());
+				return std::make_shared<asm_code::placeholder_instruction_operand>();
+
+			if (ast.value.size() < 5u){//Try register
+				if (auto reg = state_->get_reg_table().find(ast.value, false); reg != nullptr){//Identifier is a register
+					if (state_->is_inside_data_instruction())
+						throw asm_code::translation_error_code::bad_instruction_operand;
+					return std::make_shared<asm_code::register_instruction_operand>(ast.value, *reg);
+				}
+			}
+
+			return std::make_shared<asm_code::label_ref_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_identifier) &ast) const{
@@ -181,7 +184,7 @@ namespace mach::parsing{
 			for (auto &item : ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME)
 				name += ("." + item.MACH_AST_SINGLE_FIELD_NAME);
 
-			return std::make_shared<asm_code::label_ref_instruction_operand>(name, state_->is_inside_data_instruction());
+			return std::make_shared<asm_code::label_ref_instruction_operand>(name);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_memory) &ast) const{
@@ -251,40 +254,203 @@ namespace mach::parsing{
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_no_arg_instruction) &ast) const{
-			std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
-			state_->add_instruction(create_instruction(ast.MACH_AST_SINGLE_FIELD_NAME, operands));
+			switch (ast.MACH_AST_SINGLE_FIELD_NAME){
+			case machine::op_code::nop:
+				state_->add_instruction(std::make_shared<asm_code::nop_instruction>());
+				break;
+			case machine::op_code::syscall:
+				state_->add_instruction(std::make_shared<asm_code::syscall_instruction>());
+				break;
+			case machine::op_code::leave:
+				state_->add_instruction(std::make_shared<asm_code::leave_instruction>());
+				break;
+			case machine::op_code::ret:
+				state_->add_instruction(std::make_shared<asm_code::ret_instruction>());
+				break;
+			default:
+				throw asm_code::translation_error_code::unrecognized_instruction;
+				break;
+			}
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_single_arg_instruction) &ast) const{
-			/*std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
-			state_->add_instruction(create_instruction(ast.MACH_AST_SINGLE_FIELD_NAME, operands));*/
+			std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
+			operands.push_back(boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME));
+
+			switch (ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME){
+			case machine::op_code::push:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::pop:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::call:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::enter:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jmp:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jz:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jnz:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::je:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jne:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jl:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jnl:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jle:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jnle:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jg:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jng:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jge:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::jnge:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setz:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setnz:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::sete:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setne:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setl:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setnl:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setle:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setnle:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setg:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setng:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setge:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::setnge:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::loop:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::inc:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::dec:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::not_:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			default:
+				throw asm_code::translation_error_code::unrecognized_instruction;
+				break;
+			}
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_pair_args_instruction) &ast) const{
-			/*std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
-			state_->add_instruction(create_instruction(ast.MACH_AST_SINGLE_FIELD_NAME, operands));*/
-		}
-
-		/*void operator ()(const MACH_AST_NAME(asm_instruction) &ast) const{
 			std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
-			operands.reserve(ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME.size());
 
-			for (auto &op : ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME)
-				operands.push_back(boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), op));
+			operands.push_back(boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME));
+			operands.push_back(boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), ast.MACH_AST_MULTIPLE_THIRD_FIELD_NAME));
 
-			state_->add_instruction(create_instruction(ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME, operands));
-		}*/
+			switch (ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME){
+			case machine::op_code::mov:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::lea:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::add:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::sub:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::mult:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::div:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::mod:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::and_:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::xor_:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::or_:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::sal:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::sar:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::test:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::cmp:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			case machine::op_code::cnvt:
+				state_->add_instruction(std::make_shared<asm_code::mov_instruction>(std::move(operands)));
+				break;
+			default:
+				throw asm_code::translation_error_code::unrecognized_instruction;
+				break;
+			}
+		}
 
 		void operator ()(const MACH_AST_NAME(asm_section) &ast) const{
 			state_->set_current_section(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_stack) &ast) const{
-
+			state_->set_stack_size(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_global) &ast) const{
-
+			//state_->set_entry(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_label) &ast) const{
@@ -307,135 +473,46 @@ namespace mach::parsing{
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_db) &ast) const{
+			std::vector<std::shared_ptr<asm_code::instruction_operand>> operands;
+			operands.reserve(ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME.size());
 
-		}
+			for (auto &op : ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME)
+				operands.push_back(boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), op));
 
-		void operator ()(const MACH_AST_NAME(asm_dz) &ast) const{
-
-		}
-
-		void operator ()(const MACH_AST_NAME(asm_ds) &ast) const{
-
-		}
-
-		void operator ()(const MACH_AST_NAME(asm_decl) &ast) const{
-
-		}
-
-		void operator ()(const MACH_AST_NAME(asm_equ) &ast) const{
-
-		}
-
-		static std::shared_ptr<asm_code::instruction> create_instruction(machine::op_code op_code, std::vector<std::shared_ptr<asm_code::instruction_operand>> &operands){
-			switch (op_code){
-			case machine::op_code::nop:
-				return std::make_shared<asm_code::nop_instruction>(std::move(operands));
-			case machine::op_code::push:
-				return nullptr;
-			case machine::op_code::pop:
-				return nullptr;
-			case machine::op_code::mov:
-				return std::make_shared<asm_code::mov_instruction>(std::move(operands));
-			case machine::op_code::lea:
-				return nullptr;
-			case machine::op_code::syscall:
-				return std::make_shared<asm_code::syscall_instruction>(std::move(operands));
-			case machine::op_code::call:
-				return nullptr;
-			case machine::op_code::enter:
-				return nullptr;
-			case machine::op_code::leave:
-				return std::make_shared<asm_code::leave_instruction>(std::move(operands));
-			case machine::op_code::ret:
-				return std::make_shared<asm_code::ret_instruction>(std::move(operands));
-			case machine::op_code::jmp:
-				return nullptr;
-			case machine::op_code::jz:
-				return nullptr;
-			case machine::op_code::jnz:
-				return nullptr;
-			case machine::op_code::je:
-				return nullptr;
-			case machine::op_code::jne:
-				return nullptr;
-			case machine::op_code::jl:
-				return nullptr;
-			case machine::op_code::jnl:
-				return nullptr;
-			case machine::op_code::jle:
-				return nullptr;
-			case machine::op_code::jnle:
-				return nullptr;
-			case machine::op_code::jg:
-				return nullptr;
-			case machine::op_code::jng:
-				return nullptr;
-			case machine::op_code::jge:
-				return nullptr;
-			case machine::op_code::jnge:
-				return nullptr;
-			case machine::op_code::setz:
-				return nullptr;
-			case machine::op_code::setnz:
-				return nullptr;
-			case machine::op_code::sete:
-				return nullptr;
-			case machine::op_code::setne:
-				return nullptr;
-			case machine::op_code::setl:
-				return nullptr;
-			case machine::op_code::setnl:
-				return nullptr;
-			case machine::op_code::setle:
-				return nullptr;
-			case machine::op_code::setnle:
-				return nullptr;
-			case machine::op_code::setg:
-				return nullptr;
-			case machine::op_code::setng:
-				return nullptr;
-			case machine::op_code::setge:
-				return nullptr;
-			case machine::op_code::setnge:
-				return nullptr;
-			case machine::op_code::loop:
-				return nullptr;
-			case machine::op_code::inc:
-				return nullptr;
-			case machine::op_code::dec:
-				return nullptr;
-			case machine::op_code::add:
-				return nullptr;
-			case machine::op_code::sub:
-				return nullptr;
-			case machine::op_code::mult:
-				return nullptr;
-			case machine::op_code::div:
-				return nullptr;
-			case machine::op_code::mod:
-				return nullptr;
-			case machine::op_code::and_:
-				return nullptr;
-			case machine::op_code::xor_:
-				return nullptr;
-			case machine::op_code::or_:
-				return nullptr;
-			case machine::op_code::sal:
-				return nullptr;
-			case machine::op_code::sar:
-				return nullptr;
-			case machine::op_code::test:
-				return nullptr;
-			case machine::op_code::not_:
-				return nullptr;
-			case machine::op_code::cmp:
-				return nullptr;
+			switch (ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME){
+			case decl_type::db:
+				state_->add_instruction(std::make_shared<asm_code::db_instruction>(std::move(operands)));
+				break;
+			case decl_type::dw:
+				state_->add_instruction(std::make_shared<asm_code::dw_instruction>(std::move(operands)));
+				break;
+			case decl_type::dd:
+				state_->add_instruction(std::make_shared<asm_code::dd_instruction>(std::move(operands)));
+				break;
+			case decl_type::dq:
+				state_->add_instruction(std::make_shared<asm_code::dq_instruction>(std::move(operands)));
+				break;
 			default:
 				throw asm_code::translation_error_code::unrecognized_instruction;
 				break;
 			}
+		}
 
-			return nullptr;
+		void operator ()(const MACH_AST_NAME(asm_dz) &ast) const{
+			state_->add_instruction(std::make_shared<asm_code::zero_instruction>(ast.MACH_AST_SINGLE_FIELD_NAME));
+		}
+
+		void operator ()(const MACH_AST_NAME(asm_ds) &ast) const{
+			state_->add_instruction(std::make_shared<asm_code::string_instruction>(ast.MACH_AST_SINGLE_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME));
+		}
+
+		void operator ()(const MACH_AST_NAME(asm_decl) &ast) const{
+			state_->add_label(ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME, nullptr);
+			boost::apply_visitor(*this, ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME);
+		}
+
+		void operator ()(const MACH_AST_NAME(asm_equ) &ast) const{
+
 		}
 
 	private:

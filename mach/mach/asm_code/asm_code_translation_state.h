@@ -100,7 +100,7 @@ namespace mach::asm_code{
 
 		machine::register_table &get_reg_table();
 
-		void update_offsets(unsigned __int64 start_offset);
+		std::size_t update_offsets(unsigned __int64 start_offset);
 
 		translation_label *add_label(const std::string &name, bool nested);
 
@@ -122,10 +122,20 @@ namespace mach::asm_code{
 
 		bool is_inside_data_instruction() const;
 
+		void set_stack_size(std::size_t value);
+
+		std::size_t get_stack_size() const;
+
+		void set_entry(std::size_t value);
+
+		std::size_t get_entry() const;
+
 	private:
 		machine::register_table reg_table_;
 		translation_section *current_section_ = nullptr;
 		std::map<section_type, std::shared_ptr<translation_section>> sections_;
 		bool is_inside_data_instruction_ = false;
+		std::size_t stack_size_ = 0u;
+		std::size_t entry_ = 0u;
 	};
 }

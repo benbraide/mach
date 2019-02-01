@@ -9,6 +9,10 @@ namespace mach::io{
 
 		virtual ~writer() = default;
 
+		virtual std::size_t advance(std::size_t size) = 0;
+
+		virtual std::size_t set(byte data, std::size_t size) = 0;
+
 		virtual std::size_t write(const byte *buffer, std::size_t size) = 0;
 
 		template <typename target_type>

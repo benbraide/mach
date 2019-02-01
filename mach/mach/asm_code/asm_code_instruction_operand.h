@@ -4,16 +4,22 @@
 #include <vector>
 #include <functional>
 
-#include "../io/io_writer.h"
+#include "../io/io_stream_writer.h"
 #include "../machine/machine_op_code.h"
 #include "../machine/machine_register_table.h"
 
 namespace mach::asm_code{
+	class instruction;
+
 	class instruction_operand{
 	public:
 		using byte = machine::register_object::byte;
 
+		virtual void print(io::stream_writer &writer) const = 0;
+
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const = 0;
+
+		virtual instruction *get_parent() const;
 
 		virtual machine::op_operand_type get_type() const = 0;
 
@@ -21,16 +27,31 @@ namespace mach::asm_code{
 
 		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const = 0;
 
-		virtual void validate_operands() const;
+		virtual void validate_operands(machine::op_operand_size size_type) const;
 
 		virtual void resolve_operands();
 
 		virtual void traverse_operands(const std::function<void(const instruction_operand &)> &callback, bool deep = true) const;
+
+	protected:
+		friend class instruction;
+
+		virtual void set_parent_(instruction &parent);
+
+		virtual void set_parent_of_(instruction_operand &op, instruction &parent);
+
+		virtual bool is_data_operand_() const;
+
+		instruction *parent_ = nullptr;
 	};
 
 	class register_instruction_operand : public instruction_operand{
 	public:
-		explicit register_instruction_operand(machine::register_object &reg);
+		register_instruction_operand(const std::string &name, machine::register_object &reg);
+
+		register_instruction_operand(std::string &&name, machine::register_object &reg);
+
+		virtual void print(io::stream_writer &writer) const override;
 
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
 
@@ -41,6 +62,7 @@ namespace mach::asm_code{
 		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
 
 	private:
+		std::string name_;
 		machine::register_object *reg_;
 	};
 
@@ -48,6 +70,8 @@ namespace mach::asm_code{
 	public:
 		memory_instruction_operand(std::shared_ptr<instruction_operand> key, machine::op_operand_size size_type);
 
+		virtual void print(io::stream_writer &writer) const override;
+
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
 
 		virtual machine::op_operand_type get_type() const override;
@@ -56,9 +80,37 @@ namespace mach::asm_code{
 
 		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
 
+		virtual void validate_operands(machine::op_operand_size size_type) const override;
+
+		virtual void resolve_operands() override;
+
 	private:
+		virtual void set_parent_(instruction &parent) override;
+
 		std::shared_ptr<instruction_operand> key_;
 		machine::op_operand_size size_type_;
+	};
+
+	class string_instruction_operand : public instruction_operand{
+	public:
+		explicit string_instruction_operand(const std::string &data);
+
+		explicit string_instruction_operand(std::string &&data);
+
+		virtual void print(io::stream_writer &writer) const override;
+
+		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
+
+		virtual machine::op_operand_type get_type() const override;
+
+		virtual machine::op_operand_size get_size_type() const override;
+
+		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
+
+		virtual const std::string &get_data() const;
+
+	protected:
+		std::string data_;
 	};
 
 	class immediate_instruction_operand : public instruction_operand{
@@ -78,17 +130,15 @@ namespace mach::asm_code{
 			set_data(value, type);
 		}
 
-		template <typename value_type>
-		immediate_instruction_operand(value_type value, bool is_data_operand, held_value_type type = held_value_type::nil)
-			: type_(type), is_data_operand_(is_data_operand){
-			set_data(value, type);
-		}
-
 		immediate_instruction_operand(const byte *data, std::size_t size, held_value_type type);
+
+		virtual void print(io::stream_writer &writer) const override;
 
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
 
 		virtual machine::op_operand_type get_type() const override;
+
+		virtual machine::op_operand_size get_size_type() const override;
 
 		virtual std::size_t get_encoded_size(machine::op_operand_size size_type) const override;
 
@@ -132,20 +182,23 @@ namespace mach::asm_code{
 	protected:
 		mutable byte data_[sizeof(unsigned __int64)];
 		held_value_type type_ = held_value_type::nil;
-		bool is_data_operand_ = false;
 	};
 
 	class expression_instruction_operand : public immediate_instruction_operand{
 	public:
 		explicit expression_instruction_operand(char op, std::shared_ptr<instruction_operand> left, std::shared_ptr<instruction_operand> right);
 
-		virtual void validate_operands() const override;
+		virtual void print(io::stream_writer &writer) const override;
+
+		virtual void validate_operands(machine::op_operand_size size_type) const override;
 
 		virtual void resolve_operands() override;
 
 		virtual void traverse_operands(const std::function<void(const instruction_operand &)> &callback, bool deep = true) const override;
 
 	protected:
+		virtual void set_parent_(instruction &parent) override;
+
 		char op_;
 		std::shared_ptr<instruction_operand> left_;
 		std::shared_ptr<instruction_operand> right_;
@@ -153,7 +206,9 @@ namespace mach::asm_code{
 
 	class label_ref_instruction_operand : public immediate_instruction_operand{
 	public:
-		label_ref_instruction_operand(const std::string &name, bool is_data_operand);
+		explicit label_ref_instruction_operand(const std::string &name);
+
+		virtual void print(io::stream_writer &writer) const override;
 
 		const std::string &get_name() const;
 
@@ -163,11 +218,15 @@ namespace mach::asm_code{
 
 	class placeholder_instruction_operand : public label_ref_instruction_operand{
 	public:
-		explicit placeholder_instruction_operand(bool is_data_operand);
+		explicit placeholder_instruction_operand();
+
+		virtual void print(io::stream_writer &writer) const override;
 	};
 
 	class uninitialized_instruction_operand : public instruction_operand{
 	public:
+		virtual void print(io::stream_writer &writer) const override;
+
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
 
 		virtual machine::op_operand_type get_type() const override;
@@ -186,6 +245,8 @@ namespace mach::asm_code{
 
 		offset_instruction_operand(std::vector<part_info> &&parts, bool is_explicit);
 
+		virtual void print(io::stream_writer &writer) const override;
+
 		virtual void encode(machine::op_operand_size size_type, io::writer &writer, machine::register_table &reg_table) const override;
 
 		virtual machine::op_operand_type get_type() const override;
@@ -197,6 +258,8 @@ namespace mach::asm_code{
 		virtual void traverse_operands(const std::function<void(const instruction_operand &)> &callback, bool deep = true) const override;
 
 	private:
+		virtual void set_parent_(instruction &parent) override;
+
 		virtual void resolve_size_type_();
 
 		std::vector<part_info> parts_;

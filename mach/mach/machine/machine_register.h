@@ -87,6 +87,18 @@ namespace mach::machine{
 			return read(reinterpret_cast<byte *>(buffer), (sizeof(target_type) * size));
 		}
 
+		virtual std::size_t advance(std::size_t size) override{
+			return 0u;
+		}
+
+		virtual std::size_t set(byte data, std::size_t size) override{
+			if (get_size() < size)//Restrict size
+				size = get_size();
+
+			memset(get_data(), data, size);
+			return size;
+		}
+
 		template <typename target_type>
 		bool write_scalar(target_type buffer){
 			return (write(reinterpret_cast<const byte *>(&buffer), sizeof(target_type)) == sizeof(target_type));
