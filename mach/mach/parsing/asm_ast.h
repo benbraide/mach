@@ -26,14 +26,14 @@ namespace mach::parsing{
 	MACH_AST_DECLARE_PAIR_WPOS(asm_identifier, MACH_AST_NAME(mach_identifier), std::vector<MACH_AST_NAME(mach_identifier)>);
 
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_section, asm_code::translation_state::section_type);
-	MACH_AST_DECLARE_PAIR_WPOS(asm_label, std::string, MACH_AST_NAME(mach_identifier));
+	MACH_AST_DECLARE_SINGLE_WPOS(asm_label, MACH_AST_NAME(asm_identifier));
 
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_stack, unsigned __int64);
-	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(asm_global, MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier));
+	MACH_AST_DECLARE_SINGLE_WPOS(asm_global, MACH_AST_NAME(asm_identifier));
 
 	MACH_AST_DECLARE_NAME(decl_sum_expression);
 
-	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(decl_expression_term, MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(asm_float_value), MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier));
+	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(decl_expression_term, MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(asm_float_value), MACH_AST_NAME(asm_identifier));
 	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(decl_grouped_expression, MACH_AST_NAME(decl_expression_term), MACH_AST_FORWARD_NAME(decl_sum_expression));
 	MACH_AST_DECLARE_TRIO_WPOS(
 		decl_product_expression,
@@ -51,7 +51,7 @@ namespace mach::parsing{
 
 	MACH_AST_DECLARE_PAIR_WPOS(asm_offset_item, machine::op_offset_operator, MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier)));
 	MACH_AST_DECLARE_TRIO_WPOS(asm_offset, bool, MACH_AST_VARIANT(MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier)), std::vector<MACH_AST_NAME(asm_offset_item)>);
-	MACH_AST_DECLARE_PAIR_WPOS(asm_memory, boost::optional<machine::op_operand_size>, MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier), MACH_AST_NAME(asm_offset)));
+	MACH_AST_DECLARE_PAIR_WPOS(asm_memory, boost::optional<machine::op_operand_size>, MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(asm_identifier), MACH_AST_NAME(asm_offset)));
 
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_no_arg_instruction, machine::op_code);
 	MACH_AST_DECLARE_PAIR_WPOS(asm_single_arg_instruction, machine::op_code, MACH_AST_VARIANT(
@@ -102,7 +102,6 @@ namespace mach::parsing{
 			MACH_AST_NAME(asm_float_value),
 			MACH_AST_NAME(asm_char_value),
 			MACH_AST_NAME(asm_string_value),
-			MACH_AST_NAME(mach_identifier),
 			MACH_AST_NAME(asm_identifier),
 			MACH_AST_NAME(decl_sum_expression),
 			MACH_AST_NAME(decl_product_expression),
@@ -113,8 +112,8 @@ namespace mach::parsing{
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_dz, unsigned __int64);
 	MACH_AST_DECLARE_SINGLE_WPOS(asm_ds, MACH_AST_NAME(asm_string_value));
 
-	MACH_AST_DECLARE_PAIR_WPOS(asm_decl, MACH_AST_NAME(mach_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_db), MACH_AST_NAME(asm_dz), MACH_AST_NAME(asm_ds)));
-	MACH_AST_DECLARE_PAIR_WPOS(asm_equ, MACH_AST_NAME(mach_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(mach_identifier), MACH_AST_NAME(asm_identifier), MACH_AST_NAME(asm_offset)));
+	MACH_AST_DECLARE_PAIR_WPOS(asm_decl, MACH_AST_NAME(asm_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_db), MACH_AST_NAME(asm_dz), MACH_AST_NAME(asm_ds)));
+	MACH_AST_DECLARE_PAIR_WPOS(asm_equ, MACH_AST_NAME(asm_identifier), MACH_AST_VARIANT(MACH_AST_NAME(asm_integral_value), MACH_AST_NAME(asm_identifier), MACH_AST_NAME(decl_sum_expression)));
 
 	MACH_AST_DECLARE_SINGLE_VARIANT_WPOS(
 		asm_statement,
@@ -165,24 +164,27 @@ namespace mach::parsing{
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(mach_identifier) &ast) const{
-			if (ast.MACH_AST_SINGLE_FIELD_NAME.size() == 1u && ast.MACH_AST_SINGLE_FIELD_NAME[0] == '$')
-				return std::make_shared<asm_code::placeholder_instruction_operand>();
-
-			if (ast.value.size() < 5u){//Try register
-				if (auto reg = state_->get_reg_table().find(ast.value, false); reg != nullptr){//Identifier is a register
-					if (state_->is_inside_data_instruction())
-						throw asm_code::translation_error_code::bad_instruction_operand;
-					return std::make_shared<asm_code::register_instruction_operand>(ast.value, *reg);
-				}
+			if (auto reg = state_->get_reg_table().find(ast.MACH_AST_SINGLE_FIELD_NAME, false); reg != nullptr){//Identifier is a register
+				if (state_->is_inside_data_instruction())
+					throw asm_code::translation_error_code::bad_instruction_operand;
+				return std::make_shared<asm_code::register_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME, *reg);
 			}
 
 			return std::make_shared<asm_code::label_ref_instruction_operand>(ast.MACH_AST_SINGLE_FIELD_NAME);
 		}
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(asm_identifier) &ast) const{
-			std::string name = ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME;
-			for (auto &item : ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME)
-				name += ("." + item.MACH_AST_SINGLE_FIELD_NAME);
+			auto name = get_asm_identifier_string(ast);
+			if (name.size() == 1u && name[0] == '$')
+				return std::make_shared<asm_code::placeholder_instruction_operand>();
+
+			if (name.size() < 5u){//Try register
+				if (auto reg = state_->get_reg_table().find(name, false); reg != nullptr){//Identifier is a register
+					if (state_->is_inside_data_instruction())
+						throw asm_code::translation_error_code::bad_instruction_operand;
+					return std::make_shared<asm_code::register_instruction_operand>(name, *reg);
+				}
+			}
 
 			return std::make_shared<asm_code::label_ref_instruction_operand>(name);
 		}
@@ -224,6 +226,14 @@ namespace mach::parsing{
 
 		instruction_operand_type operator ()(const MACH_AST_NAME(decl_grouped_expression) &ast) const{
 			return boost::apply_visitor(*this, ast.MACH_AST_SINGLE_FIELD_NAME);
+		}
+
+		static std::string get_asm_identifier_string(const MACH_AST_NAME(asm_identifier) &ast){
+			std::string name = ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME;
+			for (auto &item : ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME)
+				name += ("." + item.MACH_AST_SINGLE_FIELD_NAME);
+
+			return name;
 		}
 
 	private:
@@ -450,26 +460,11 @@ namespace mach::parsing{
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_global) &ast) const{
-			//state_->set_entry(ast.MACH_AST_SINGLE_FIELD_NAME);
+			state_->set_entry(MACH_AST_NAME(asm_operand_visitor)::get_asm_identifier_string(ast.MACH_AST_SINGLE_FIELD_NAME));
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_label) &ast) const{
-			if (ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.empty() || ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME[0] != '.'){
-				asm_code::translation_label *target_label;
-				if (ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME[0] == '^'){
-					auto current_label = state_->get_current_label();
-					target_label = ((current_label == nullptr) ? nullptr : current_label->get_parent());
-
-					for (auto i = ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.size(); 0u < i && target_label != nullptr; --i)
-						target_label = target_label->get_parent();
-				}
-				else//Root
-					target_label = nullptr;
-
-				state_->add_label(ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME, target_label);
-			}
-			else//Nested label
-				state_->add_label(ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME, true);
+			state_->add_label(MACH_AST_NAME(asm_operand_visitor)::get_asm_identifier_string(ast.MACH_AST_SINGLE_FIELD_NAME));
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_db) &ast) const{
@@ -507,12 +502,12 @@ namespace mach::parsing{
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_decl) &ast) const{
-			state_->add_label(ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME.MACH_AST_SINGLE_FIELD_NAME, nullptr);
+			state_->add_label(MACH_AST_NAME(asm_operand_visitor)::get_asm_identifier_string(ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME));
 			boost::apply_visitor(*this, ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME);
 		}
 
 		void operator ()(const MACH_AST_NAME(asm_equ) &ast) const{
-
+			state_->add_equ(MACH_AST_NAME(asm_operand_visitor)::get_asm_identifier_string(ast.MACH_AST_MULTIPLE_FIRST_FIELD_NAME), boost::apply_visitor(MACH_AST_NAME(asm_operand_visitor)(*state_), ast.MACH_AST_MULTIPLE_SECOND_FIELD_NAME));
 		}
 
 	private:
@@ -534,7 +529,7 @@ MACH_AST_ADAPT_SINGLE(asm_global)
 MACH_AST_ADAPT_PAIR(asm_identifier)
 
 MACH_AST_ADAPT_SINGLE(asm_section)
-MACH_AST_ADAPT_PAIR(asm_label)
+MACH_AST_ADAPT_SINGLE(asm_label)
 
 MACH_AST_ADAPT_SINGLE(decl_expression_term)
 MACH_AST_ADAPT_SINGLE(decl_grouped_expression)

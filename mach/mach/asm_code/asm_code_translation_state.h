@@ -11,45 +11,46 @@ namespace mach::asm_code{
 	enum class translation_error_code{
 		nil,
 		no_active_section,
+		label_not_found,
 		duplicate_label,
 		bad_instruction_operand,
 		unrecognized_instruction,
 	};
 
+	class translation_section;
+	class translation_state;
+
 	class translation_label{
 	public:
-		using entry_type = std::variant<instruction *, translation_label *>;
+		translation_label(const std::string &name, unsigned __int64 offset);
 
-		explicit translation_label(const std::string &name, translation_label *parent = nullptr);
+		virtual const std::string &get_name() const;
 
-		translation_label *add_label(const std::string &name);
+		virtual unsigned __int64 get_offset() const;
 
-		void add_instruction(std::shared_ptr<instruction> value);
+	protected:
+		friend class translation_section;
 
-		const std::string &get_name() const;
-
-		const std::string &get_qname() const;
-
-		translation_label *get_parent() const;
-
-		translation_label *find_label(const std::string &name) const;
-
-		translation_label *find_qlabel(const std::string &qname) const;
-
-	private:
 		std::string name_;
-		std::string qname_;
-		translation_label *parent_;
-
-		std::list<entry_type> entries_;
-		std::list<std::shared_ptr<instruction>> instructions_;
-		std::unordered_map<std::string, std::shared_ptr<translation_label>> labels_;
+		unsigned __int64 offset_ = 0u;
 	};
 
-	class translation_state;
+	class translation_equ_label : public translation_label{
+	public:
+		translation_equ_label(const std::string &name, unsigned __int64 offset, std::shared_ptr<instruction_operand> expression);
+
+		virtual unsigned __int64 get_offset() const override;
+
+	protected:
+		friend class translation_section;
+
+		std::shared_ptr<instruction_operand> expression_;
+	};
 
 	class translation_section{
 	public:
+		using entry_type = std::variant<instruction *, translation_label *>;
+
 		enum class id_type{
 			header,
 			rodata,
@@ -59,9 +60,9 @@ namespace mach::asm_code{
 
 		translation_section(id_type id, translation_state &state);
 
-		translation_label *add_label(const std::string &name, bool nested);
+		translation_label *add_label(const std::string &name);
 
-		translation_label *add_label(const std::string &name, translation_label *parent);
+		void add_equ(const std::string &name, std::shared_ptr<instruction_operand> op);
 
 		void add_instruction(std::shared_ptr<instruction> value);
 
@@ -69,29 +70,25 @@ namespace mach::asm_code{
 
 		translation_state *get_state() const;
 
-		void update_offset(unsigned __int64 value);
+		void resolve(unsigned __int64 start_address);
 
 		unsigned __int64 get_offset() const;
 
-		translation_label *get_current_label() const;
-
 		translation_label *find_label(const std::string &name) const;
-
-		translation_label *find_qlabel(const std::string &qname) const;
 
 	private:
 		id_type id_;
 		translation_state *state_;
-
 		unsigned __int64 offset_ = 0;
-		translation_label *current_label_ = nullptr;
 
-		std::list<translation_label::entry_type> entries_;
+		std::list<entry_type> entries_;
 		std::list<std::shared_ptr<instruction>> instructions_;
-		std::unordered_map<std::string, std::shared_ptr<translation_label>> labels_;
 
-		std::unordered_map<std::string, unsigned __int64> label_offsets_;
+		std::unordered_map<std::string, std::shared_ptr<translation_label>> labels_;
 		std::unordered_map<std::string, std::list<label_ref_instruction_operand *>> label_refs_;
+		std::unordered_map<std::string, std::list<label_ref_instruction_operand *>> equ_label_refs_;
+
+		std::list<placeholder_instruction_operand *> placeholders_;
 	};
 
 	class translation_state{
@@ -100,11 +97,11 @@ namespace mach::asm_code{
 
 		machine::register_table &get_reg_table();
 
-		std::size_t update_offsets(unsigned __int64 start_offset);
+		std::size_t resolve(unsigned __int64 start_offset);
 
-		translation_label *add_label(const std::string &name, bool nested);
+		translation_label *add_label(const std::string &name);
 
-		translation_label *add_label(const std::string &name, translation_label *parent);
+		void add_equ(const std::string &name, std::shared_ptr<instruction_operand> op);
 
 		void add_instruction(std::shared_ptr<instruction> value);
 
@@ -112,9 +109,7 @@ namespace mach::asm_code{
 
 		translation_section *get_current_section() const;
 
-		translation_label *get_current_label() const;
-
-		translation_label *find_qlabel(const std::string &qname) const;
+		translation_label *find_label(const std::string &name) const;
 
 		void enter_data_instruction();
 
@@ -126,9 +121,11 @@ namespace mach::asm_code{
 
 		std::size_t get_stack_size() const;
 
-		void set_entry(std::size_t value);
+		void set_entry(const std::string &value);
 
-		std::size_t get_entry() const;
+		const std::string &get_entry() const;
+
+		unsigned __int64 get_entry_address() const;
 
 	private:
 		machine::register_table reg_table_;
@@ -136,6 +133,6 @@ namespace mach::asm_code{
 		std::map<section_type, std::shared_ptr<translation_section>> sections_;
 		bool is_inside_data_instruction_ = false;
 		std::size_t stack_size_ = 0u;
-		std::size_t entry_ = 0u;
+		std::string entry_;
 	};
 }

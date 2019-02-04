@@ -6,7 +6,7 @@
 #include "parsing/asm_grammar.h"
 
 int main(){
-	std::string data = "bytes equ label + 9 ";
+	std::string data = "mov eax raxa. ball";
 	MACH_AST_QNAME(asm_program) ast;
 
 	auto begin = data.begin();

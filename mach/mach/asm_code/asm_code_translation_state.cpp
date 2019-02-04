@@ -1,96 +1,59 @@
 #include "asm_code_translation_state.h"
 
-mach::asm_code::translation_label::translation_label(const std::string &name, translation_label *parent)
-	: name_(name), parent_(parent), qname_((parent == nullptr) ? name : (parent->get_qname() + "." + name)){}
-
-mach::asm_code::translation_label *mach::asm_code::translation_label::add_label(const std::string &name){
-	auto label = std::make_shared<translation_label>(name, this);
-
-	entries_.push_back(label.get());
-	labels_[name] = label;
-
-	return label.get();
-}
-
-void mach::asm_code::translation_label::add_instruction(std::shared_ptr<instruction> value){
-	instructions_.push_back(value);
-	entries_.push_back(value.get());
-}
+mach::asm_code::translation_label::translation_label(const std::string &name, unsigned __int64 offset)
+	: name_(name), offset_(offset){}
 
 const std::string &mach::asm_code::translation_label::get_name() const{
 	return name_;
 }
 
-const std::string &mach::asm_code::translation_label::get_qname() const{
-	return name_;
+unsigned __int64 mach::asm_code::translation_label::get_offset() const{
+	return offset_;
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_label::get_parent() const{
-	return parent_;
-}
+mach::asm_code::translation_equ_label::translation_equ_label(const std::string &name, unsigned __int64 offset, std::shared_ptr<instruction_operand> expression)
+	: translation_label(name, offset), expression_(expression){}
 
-mach::asm_code::translation_label *mach::asm_code::translation_label::find_label(const std::string &name) const{
-	auto iter = labels_.find(name);
-	return ((iter == labels_.end()) ? nullptr : iter->second.get());
-}
-
-mach::asm_code::translation_label *mach::asm_code::translation_label::find_qlabel(const std::string &qname) const{
-	for (auto &label : labels_){
-		if (label.second->get_qname() == qname)
-			return label.second.get();
-
-		if (auto found = label.second->find_qlabel(qname); found != nullptr)
-			return found;
-	}
-
-	return nullptr;
+unsigned __int64 mach::asm_code::translation_equ_label::get_offset() const{
+	return dynamic_cast<immediate_instruction_operand *>(expression_.get())->get_data_as<unsigned __int64>();
 }
 
 mach::asm_code::translation_section::translation_section(id_type id, translation_state &state)
 	: id_(id), state_(&state){}
 
-mach::asm_code::translation_label *mach::asm_code::translation_section::add_label(const std::string &name, bool nested){
-	if (nested && current_label_ != nullptr)//Nest inside current label
-		return add_label(name, current_label_);
-
-	if (state_->find_qlabel(name) != nullptr)
+mach::asm_code::translation_label *mach::asm_code::translation_section::add_label(const std::string &name){
+	if (state_->find_label(name) != nullptr)
 		throw translation_error_code::duplicate_label;
 
-	auto label = std::make_shared<translation_label>(name);
+	auto label = std::make_shared<translation_label>(name, offset_);
 	entries_.push_back(label.get());
 
-	current_label_ = (labels_[name] = label).get();
-	label_offsets_[current_label_->get_qname()] = offset_;
-
-	return current_label_;
+	return (labels_[name] = label).get();
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_section::add_label(const std::string &name, translation_label *parent){
-	if (parent == nullptr)//No parent
-		return add_label(name, false);
-
-	if (state_->find_qlabel(parent->get_qname() + "." + name) != nullptr)
+void mach::asm_code::translation_section::add_equ(const std::string &name, std::shared_ptr<instruction_operand> op){
+	if (state_->find_label(name) != nullptr)
 		throw translation_error_code::duplicate_label;
 
-	current_label_ = current_label_->add_label(name);
-	label_offsets_[current_label_->get_qname()] = offset_;
-
-	return current_label_;
+	op->traverse_operands([&](const instruction_operand &operand){
+		if (auto placeholder = dynamic_cast<placeholder_instruction_operand *>(const_cast<instruction_operand *>(&operand)); placeholder != nullptr){
+			placeholder->set_data(offset_);
+			placeholders_.push_back(placeholder);
+		}
+		else if (auto label_ref = dynamic_cast<label_ref_instruction_operand *>(const_cast<instruction_operand *>(&operand)); label_ref != nullptr)
+			equ_label_refs_[label_ref->get_name()].push_back(label_ref);
+	}, true);
 }
 
 void mach::asm_code::translation_section::add_instruction(std::shared_ptr<instruction> value){
-	if (current_label_ == nullptr){
-		instructions_.push_back(value);
-		entries_.push_back(value.get());
-	}
-	else//Use current label
-		current_label_->add_instruction(value);
+	instructions_.push_back(value);
+	entries_.push_back(value.get());
 
 	auto meta_size = value->get_meta_encoded_size();
 	value->traverse_operands([&](const instruction_operand &operand){
 		if (auto placeholder = dynamic_cast<placeholder_instruction_operand *>(const_cast<instruction_operand *>(&operand)); placeholder != nullptr){
 			placeholder->set_data(offset_ + meta_size);
-			label_refs_[""].push_back(placeholder);
+			placeholders_.push_back(placeholder);
 		}
 		else if (auto label_ref = dynamic_cast<label_ref_instruction_operand *>(const_cast<instruction_operand *>(&operand)); label_ref != nullptr)
 			label_refs_[label_ref->get_name()].push_back(label_ref);
@@ -109,18 +72,34 @@ mach::asm_code::translation_state *mach::asm_code::translation_section::get_stat
 	return state_;
 }
 
-void mach::asm_code::translation_section::update_offset(unsigned __int64 value){
-	for (auto &offset : label_offsets_){//Update label offsets and references
-		offset.second += value;
-		if (auto it = label_refs_.find(offset.first); it != label_refs_.end()){//Update references
-			for (auto item : it->second)
-				item->set_data(offset.second);
-		}
+void mach::asm_code::translation_section::resolve(unsigned __int64 start_address){
+	for (auto placeholder : placeholders_)//Update placeholders
+		placeholder->set_data(placeholder->get_data_as<unsigned __int64>() + start_address);
+
+	for (auto &label : labels_)//Update labels
+		label.second->offset_ += start_address;
+
+	for (auto &label_ref : equ_label_refs_){//Update label references
+		auto label = find_label(label_ref.first);
+		if (label == nullptr)
+			throw translation_error_code::label_not_found;
+
+		for (auto item : label_ref.second)
+			item->set_data(label->get_offset());
 	}
 
-	if (auto it = label_refs_.find(""); it != label_refs_.end()){//Update placeholders
-		for (auto item : it->second)
-			item->set_data(item->get_data_as<unsigned __int64>() + value);
+	for (auto &label : labels_){//Resolve EQU labels
+		if (auto equ_label = dynamic_cast<translation_equ_label *>(label.second.get()); equ_label != nullptr)
+			equ_label->expression_->resolve_operands();
+	}
+
+	for (auto &label_ref : label_refs_){//Update label references
+		auto label = find_label(label_ref.first);
+		if (label == nullptr)
+			throw translation_error_code::label_not_found;
+
+		for (auto item : label_ref.second)
+			item->set_data(label->get_offset());
 	}
 
 	for (auto instruction : instructions_)
@@ -131,36 +110,20 @@ unsigned __int64 mach::asm_code::translation_section::get_offset() const{
 	return offset_;
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_section::get_current_label() const{
-	return current_label_;
-}
-
 mach::asm_code::translation_label *mach::asm_code::translation_section::find_label(const std::string &name) const{
 	auto iter = labels_.find(name);
 	return ((iter == labels_.end()) ? nullptr : iter->second.get());
-}
-
-mach::asm_code::translation_label *mach::asm_code::translation_section::find_qlabel(const std::string &qname) const{
-	for (auto &label : labels_){
-		if (label.second->get_qname() == qname)
-			return label.second.get();
-
-		if (auto found = label.second->find_qlabel(qname); found != nullptr)
-			return found;
-	}
-
-	return nullptr;
 }
 
 mach::machine::register_table &mach::asm_code::translation_state::get_reg_table(){
 	return reg_table_;
 }
 
-std::size_t mach::asm_code::translation_state::update_offsets(unsigned __int64 start_offset){
+std::size_t mach::asm_code::translation_state::resolve(unsigned __int64 start_offset){
 	auto offset = start_offset;
 	for (auto &section : sections_){
 		if (section.first != section_type::header){
-			section.second->update_offset(offset);
+			section.second->resolve(offset);
 			offset += section.second->get_offset();
 		}
 	}
@@ -168,18 +131,18 @@ std::size_t mach::asm_code::translation_state::update_offsets(unsigned __int64 s
 	return (offset - start_offset);
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_state::add_label(const std::string &name, bool nested){
+mach::asm_code::translation_label *mach::asm_code::translation_state::add_label(const std::string &name){
 	if (current_section_ == nullptr)
 		throw translation_error_code::no_active_section;
 
-	return current_section_->add_label(name, nested);
+	return current_section_->add_label(name);
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_state::add_label(const std::string &name, translation_label *parent){
-	if (current_section_ == nullptr)
+void mach::asm_code::translation_state::add_equ(const std::string &name, std::shared_ptr<instruction_operand> op){
+	if (current_section_ != nullptr)
+		current_section_->add_equ(name, op);
+	else
 		throw translation_error_code::no_active_section;
-
-	return current_section_->add_label(name, parent);
 }
 
 void mach::asm_code::translation_state::add_instruction(std::shared_ptr<instruction> value){
@@ -203,13 +166,9 @@ mach::asm_code::translation_section *mach::asm_code::translation_state::get_curr
 	return current_section_;
 }
 
-mach::asm_code::translation_label *mach::asm_code::translation_state::get_current_label() const{
-	return ((current_section_ == nullptr) ? nullptr : current_section_->get_current_label());
-}
-
-mach::asm_code::translation_label *mach::asm_code::translation_state::find_qlabel(const std::string &qname) const{
+mach::asm_code::translation_label *mach::asm_code::translation_state::find_label(const std::string &name) const{
 	for (auto &section : sections_){
-		if (auto found = section.second->find_qlabel(qname); found != nullptr)
+		if (auto found = section.second->find_label(name); found != nullptr)
 			return found;
 	}
 
@@ -236,10 +195,15 @@ std::size_t mach::asm_code::translation_state::get_stack_size() const{
 	return stack_size_;
 }
 
-void mach::asm_code::translation_state::set_entry(std::size_t value){
+void mach::asm_code::translation_state::set_entry(const std::string &value){
 	entry_ = value;
 }
 
-std::size_t mach::asm_code::translation_state::get_entry() const{
+const std::string &mach::asm_code::translation_state::get_entry() const{
 	return entry_;
+}
+
+unsigned __int64 mach::asm_code::translation_state::get_entry_address() const{
+	auto label = find_label(entry_);
+	return ((label == nullptr) ? 0u : label->get_offset());
 }

@@ -8,7 +8,7 @@ namespace mach::parsing{
 
 	MACH_GRAMMAR_ANNOTATOR_BEGIN(asm_register)
 		auto &translation_state = MACH_GRAMMAR_ACTION_GET_TAGGED(asm_translation_state);
-		if (translation_state.get_reg_table().find(MACH_GRAMMAR_ANNOTATOR_AST_NAME.MACH_AST_SINGLE_FIELD_NAME, false) == nullptr)
+		if (translation_state.get_reg_table().find(std::string(MACH_GRAMMAR_ANNOTATOR_FIRST_ITERATOR_NAME, MACH_GRAMMAR_ANNOTATOR_LAST_ITERATOR_NAME), false) == nullptr)
 			MACH_GRAMMAR_ANNOTATOR_FAIL;
 		else//Identifier is a register
 			MACH_GRAMMAR_ANNOTATOR_CALL_BASE;
@@ -178,23 +178,42 @@ namespace mach::parsing{
 	MACH_GRAMMAR_DECLARE_RULE4(asm_register, mach_identifier, asm_register);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_register) = helper::keyword(MACH_GRAMMAR_NAME(mach_identifier));
 
+	MACH_GRAMMAR_DECLARE_RULE0(asm_not_identifier);
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_not_identifier) = x3::omit[helper::keyword(
+		x3::lit("section") | x3::lit("offset") | x3::lit("lea") | x3::lit("enter") | x3::lit("cnvt") | x3::lit("times") | x3::lit("equ") |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_type) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_decl_type) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_no_arg_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_std_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_jmp_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_set_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_stack_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_unary_arith_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_binary_arith_instruction) |
+		MACH_GRAMMAR_SYMBOLS_NAME(asm_binary_int_arith_instruction) |
+		MACH_GRAMMAR_NAME(asm_register)
+	)];
+
+	MACH_GRAMMAR_DECLARE_RULE2(asm_identifier_part, mach_identifier);
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_identifier_part) = (!MACH_GRAMMAR_NAME(asm_not_identifier) >> MACH_GRAMMAR_NAME(mach_identifier));
+
 	MACH_GRAMMAR_DECLARE_RULE(asm_identifier);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_identifier) = (MACH_GRAMMAR_NAME(mach_identifier) >> +x3::lexeme['.' >> MACH_GRAMMAR_NAME(mach_identifier)]);
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_identifier) = x3::lexeme[(MACH_GRAMMAR_NAME(asm_identifier_part) >> *('.' > MACH_GRAMMAR_NAME(asm_identifier_part)))];
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_section);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_section) = x3::no_case[(helper::keyword("section") > MACH_GRAMMAR_SYMBOLS_NAME(asm_section))];
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_label);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_label) = (x3::lexeme[(*x3::char_(".^~") >> MACH_GRAMMAR_NAME(mach_identifier)) >> ":"]);
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_label) = (x3::lexeme[MACH_GRAMMAR_NAME(asm_identifier) >> ":"]);
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_stack);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_stack) = (helper::keyword(x3::no_case[".stack"]) > x3::uint64);
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_global);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_global) = (helper::keyword(x3::no_case[".global"]) > (MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier)));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_global) = (helper::keyword(x3::no_case[".global"]) > MACH_GRAMMAR_NAME(asm_identifier));
 
 	MACH_GRAMMAR_DECLARE_RULE(decl_expression_term);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(decl_expression_term) = (MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(decl_expression_term) = (MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier));
 
 	MACH_GRAMMAR_DECLARE_RULE(decl_sum_expression);
 
@@ -206,17 +225,20 @@ namespace mach::parsing{
 
 	MACH_GRAMMAR_RULE_DEF_PREFIX(decl_sum_expression) = ((MACH_GRAMMAR_NAME(decl_product_expression) | MACH_GRAMMAR_NAME(decl_expression_term)) >> x3::char_("+-") >> (MACH_GRAMMAR_NAME(decl_sum_expression) | MACH_GRAMMAR_NAME(decl_expression_term)));
 
+	MACH_GRAMMAR_DECLARE_RULE2(decl_sum_only_expression, decl_sum_expression);
+	MACH_GRAMMAR_RULE_DEF_PREFIX(decl_sum_only_expression) = (MACH_GRAMMAR_NAME(decl_expression_term) >> x3::char_("+-") >> (MACH_GRAMMAR_NAME(decl_sum_only_expression) | MACH_GRAMMAR_NAME(decl_expression_term)));
+
 	MACH_GRAMMAR_DECLARE_RULE(asm_offset_item);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset_item) = (MACH_GRAMMAR_SYMBOLS_NAME(asm_offset_op) > (MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier)));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset_item) = (MACH_GRAMMAR_SYMBOLS_NAME(asm_offset_op) > (MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_identifier)));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_offset);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset) = (x3::attr(false) >> (MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier)) >> +MACH_GRAMMAR_NAME(asm_offset_item));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset) = (x3::attr(false) >> (MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_identifier)) >> +MACH_GRAMMAR_NAME(asm_offset_item));
 
 	MACH_GRAMMAR_DECLARE_RULE2(asm_offset_explicit, asm_offset);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset_explicit) = ((helper::keyword(x3::no_case["offset"]) >> x3::attr(true)) > (MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier)) > +MACH_GRAMMAR_NAME(asm_offset_item));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_offset_explicit) = ((helper::keyword(x3::no_case["offset"]) >> x3::attr(true)) > (MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_identifier)) > +MACH_GRAMMAR_NAME(asm_offset_item));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_memory);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_memory) = (-x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_type)] >> '[' > (MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_offset)) > ']');
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_memory) = (-x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_type)] >> '[' > (MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(asm_offset)) > ']');
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_no_arg_instruction);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_no_arg_instruction) = x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_no_arg_instruction)];
@@ -226,13 +248,13 @@ namespace mach::parsing{
 		helper::keyword(x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_std_instruction)]) >
 		(MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_memory)) >
 		(MACH_GRAMMAR_NAME(asm_memory) |MACH_GRAMMAR_NAME(asm_offset_explicit) | MACH_GRAMMAR_NAME(asm_identifier) |
-			MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_char_value))
+			MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_char_value))
 	);
 	
 	MACH_GRAMMAR_DECLARE_RULE2(asm_jmp_instruction, asm_single_arg_instruction);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_jmp_instruction) = (
 		helper::keyword(x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_jmp_instruction)]) >
-		(MACH_GRAMMAR_NAME(asm_offset_explicit) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
+		(MACH_GRAMMAR_NAME(asm_offset_explicit) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
 	);
 	
 	MACH_GRAMMAR_DECLARE_RULE2(asm_set_instruction, asm_single_arg_instruction);
@@ -257,20 +279,20 @@ namespace mach::parsing{
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_binary_arith_instruction) = (
 		helper::keyword(x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_binary_arith_instruction)]) >
 		(MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_memory)) >
-		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value))
+		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(asm_float_value) | MACH_GRAMMAR_NAME(asm_integral_value))
 	);
 	
 	MACH_GRAMMAR_DECLARE_RULE2(asm_binary_int_arith_instruction, asm_pair_args_instruction);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_binary_int_arith_instruction) = (
 		helper::keyword(x3::no_case[MACH_GRAMMAR_SYMBOLS_NAME(asm_binary_int_arith_instruction)]) >
 		(MACH_GRAMMAR_NAME(asm_register) | MACH_GRAMMAR_NAME(asm_memory)) >
-		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
+		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
 	);
 	
 	MACH_GRAMMAR_DECLARE_RULE2(asm_lea_instruction, asm_single_arg_instruction);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_lea_instruction) = (
 		(helper::keyword(x3::no_case["lea"]) >> x3::attr(machine::op_code::lea)) >
-		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_offset_explicit) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
+		(MACH_GRAMMAR_NAME(asm_memory) | MACH_GRAMMAR_NAME(asm_offset_explicit) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(asm_integral_value))
 	);
 	
 	MACH_GRAMMAR_DECLARE_RULE2(asm_enter_instruction, asm_single_arg_instruction);
@@ -315,8 +337,7 @@ namespace mach::parsing{
 			MACH_GRAMMAR_NAME(asm_integral_value) |
 			MACH_GRAMMAR_NAME(asm_char_value) |
 			MACH_GRAMMAR_NAME(asm_string_value) |
-			MACH_GRAMMAR_NAME(asm_identifier) |
-			MACH_GRAMMAR_NAME(mach_identifier)
+			MACH_GRAMMAR_NAME(asm_identifier)
 		)
 	);
 
@@ -327,10 +348,10 @@ namespace mach::parsing{
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_ds) = (helper::keyword(x3::no_case[".string"]) > MACH_GRAMMAR_NAME(asm_string_value));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_decl);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_decl) = (MACH_GRAMMAR_NAME(mach_identifier) >> (MACH_GRAMMAR_NAME(asm_db) | MACH_GRAMMAR_NAME(asm_dz) | MACH_GRAMMAR_NAME(asm_ds)));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_decl) = (MACH_GRAMMAR_NAME(asm_identifier) >> (MACH_GRAMMAR_NAME(asm_db) | MACH_GRAMMAR_NAME(asm_dz) | MACH_GRAMMAR_NAME(asm_ds)));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_equ);
-	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_equ) = (MACH_GRAMMAR_NAME(mach_identifier) >> helper::keyword(x3::no_case["equ"]) > (MACH_GRAMMAR_NAME(asm_offset) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier) | MACH_GRAMMAR_NAME(mach_identifier)));
+	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_equ) = (MACH_GRAMMAR_NAME(asm_identifier) >> helper::keyword(x3::no_case["equ"]) > (MACH_GRAMMAR_NAME(decl_sum_only_expression) | MACH_GRAMMAR_NAME(asm_integral_value) | MACH_GRAMMAR_NAME(asm_identifier)));
 
 	MACH_GRAMMAR_DECLARE_RULE(asm_statement);
 	MACH_GRAMMAR_RULE_DEF_PREFIX(asm_statement) = ((
@@ -361,6 +382,8 @@ namespace mach::parsing{
 		MACH_GRAMMAR_NAME(asm_expected_char_value),
 		MACH_GRAMMAR_NAME(asm_string_value),
 		MACH_GRAMMAR_NAME(asm_register),
+		MACH_GRAMMAR_NAME(asm_not_identifier),
+		MACH_GRAMMAR_NAME(asm_identifier_part),
 		MACH_GRAMMAR_NAME(asm_identifier),
 		MACH_GRAMMAR_NAME(asm_section),
 		MACH_GRAMMAR_NAME(asm_label),
@@ -368,6 +391,7 @@ namespace mach::parsing{
 		MACH_GRAMMAR_NAME(asm_global),
 		MACH_GRAMMAR_NAME(decl_expression_term),
 		MACH_GRAMMAR_NAME(decl_grouped_expression),
+		MACH_GRAMMAR_NAME(decl_sum_only_expression),
 		MACH_GRAMMAR_NAME(decl_sum_expression),
 		MACH_GRAMMAR_NAME(decl_product_expression),
 		MACH_GRAMMAR_NAME(asm_offset_item),
